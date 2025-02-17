@@ -1,40 +1,41 @@
 export default {
     async fetch(request: Request, env) {
         try {
+            // Handle GET requests with an info message
             if (request.method === "GET") {
                 return new Response(JSON.stringify({
-                    message: "Welcome to the Army of Me Image Generator! Now using `flux-1-schnell`."
+                    message: "Welcome to the Army of Me Image Generator! Use a POST request with a JSON body to generate images."
                 }), { status: 200, headers: { "Content-Type": "application/json" } });
             }
 
-            // Parse the incoming request
-            const { prompt = "A portrait of a person" } = await request.json().catch(() => ({}));
+            // Parse JSON request
+            const { prompt = "cyberpunk cat", width = 512, height = 512 } = await request.json().catch(() => ({}));
 
-            console.log(`🔍 Prompt: "${prompt}"`);
+            console.log(`Prompt: "${prompt}", Dimensions: ${width}x${height}`);
 
-            // Call the flux-1-schnell model
-            const response = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", { prompt });
+            // Validate dimensions
+            const safeWidth = Math.max(512, Math.min(width, 1024));
+            const safeHeight = Math.max(512, Math.min(height, 1024));
+
+            // Run the AI model
+            const response = await env.AI.run("@cf/stabilityai/stable-diffusion-xl-base-1.0", { prompt, safeWidth, safeHeight });
 
             if (!response || response.length === 0) {
-                console.error("⚠️ Flux-1-Schnell returned empty data!");
+                console.error("AI model returned empty response.");
                 return new Response(JSON.stringify({
-                    error: "Flux-1-Schnell returned no image data.",
-                    fallback: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AA..."
+                    error: "AI model returned no data. Possibly due to invalid input or model issues."
                 }), { status: 500 });
             }
 
-            console.log(`✅ Received ${response.length} bytes.`);
+            console.log("AI response received, returning raw binary image...");
 
-            // Convert binary response to Base64
-            const base64 = btoa(String.fromCharCode(...new Uint8Array(response)));
-            const imageData = `data:image/png;base64,${base64}`;
-
-            return new Response(JSON.stringify({ image_url: imageData }), {
-                headers: { "Content-Type": "application/json" }
+            // Return the binary response directly as an image
+            return new Response(response, {
+                headers: { "Content-Type": "image/png" }
             });
 
         } catch (error) {
-            console.error("❌ Error generating image:", error);
+            console.error("Unexpected error:", error);
             return new Response(JSON.stringify({ error: error.message }), { status: 500 });
         }
     }
