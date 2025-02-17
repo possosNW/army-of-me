@@ -1,43 +1,55 @@
 export default {
     async fetch(request: Request, env) {
         try {
-            // Handle GET requests with an info message
+            // Handle GET requests
             if (request.method === "GET") {
                 return new Response(JSON.stringify({
-                    message: "Welcome to the Army of Me Image Generator! Use a POST request with a JSON body to generate images."
-                }), { status: 200, headers: { "Content-Type": "application/json" } });
+                    message: "Welcome to Army of Me Image Generator! Use POST with a JSON body to generate images."
+                }), { status: 200 });
             }
 
             // Parse JSON request
-            const { prompt = "A fantasy portrait of a human warrior", width = 512, height = 512 } = await request.json().catch(() => ({}));
+            let { prompt, width, height } = await request.json().catch(() => ({}));
 
-            console.log(`🧠 Generating image with prompt: "${prompt}" (Dimensions: ${width}x${height})`);
+            // Use fallback prompt if missing
+            if (!prompt || prompt.trim() === "") {
+                console.warn("⚠️ Missing prompt - using fallback cyberpunk cat.");
+                prompt = "Cyberpunk cat with neon glasses in a futuristic cityscape.";
+            }
 
             // Validate dimensions
-            const safeWidth = Math.max(512, Math.min(width, 1024));
-            const safeHeight = Math.max(512, Math.min(height, 1024));
+            const validWidth = Math.min(Math.max(width || 512, 512), 1024);
+            const validHeight = Math.min(Math.max(height || 512, 512), 512);
 
-            // Run the AI model
+            console.log(`🖼️ Generating image with prompt: "${prompt}" (${validWidth}x${validHeight})`);
+
+            // Call Cloudflare AI Model
             const response = await env.AI.run("@cf/stabilityai/stable-diffusion-xl-base-1.0", { 
                 prompt, 
-                width: safeWidth, 
-                height: safeHeight 
+                width: validWidth, 
+                height: validHeight 
             });
 
-            // Handle empty response
+            // Check for empty response
             if (!response || response.length === 0) {
-                console.error("⚠️ AI model returned empty response.");
+                console.error("⚠️ AI model returned empty data.");
                 return new Response(JSON.stringify({
-                    error: "AI model returned no data. Possibly due to invalid input or model issues.",
-                    suggested_fix: "Try simplifying the prompt or adjusting dimensions (max 1024x1024)."
+                    error: "AI model returned no data. Model might be overloaded or prompt invalid."
                 }), { status: 500 });
             }
 
-            // Calculate size
-            const sizeKB = (response.length / 1024).toFixed(2);
-            console.log(`✅ AI response received: ${response.length} bytes (~${sizeKB} KB)`);
+            // Validate PNG signature
+            if (!(response[0] === 0x89 && response[1] === 0x50 && response[2] === 0x4E && response[3] === 0x47)) {
+                console.error("⚠️ Invalid PNG data received from model.");
+                return new Response(JSON.stringify({
+                    error: "Invalid PNG data received. Model failure suspected.",
+                }), { status: 500 });
+            }
 
-            // Return the binary response directly as an image
+            const sizeKB = (response.length / 1024).toFixed(2);
+            console.log(`✅ Generated valid PNG of size: ${sizeKB} KB`);
+
+            // Return binary PNG
             return new Response(response, {
                 headers: { "Content-Type": "image/png" }
             });
@@ -45,8 +57,7 @@ export default {
         } catch (error) {
             console.error("❌ Unexpected error:", error);
             return new Response(JSON.stringify({ 
-                error: error.message, 
-                details: "Ensure your API key and model ID are correct, and retry the request." 
+                error: error.message 
             }), { status: 500 });
         }
     }
