@@ -8,20 +8,16 @@ export default {
                 }), { status: 200, headers: { "Content-Type": "application/json" } });
             }
 
-            // Parse JSON request
-            const { prompt = "A fantasy portrait of a human warrior", width = 512, height = 512 } = await request.json().catch(() => ({}));
+            // Parse JSON request with fallback prompt
+            const { prompt = "A fantasy portrait of a human warrior" } = await request.json().catch(() => ({}));
 
-            console.log(`🧠 Generating image with prompt: "${prompt}" (Dimensions: ${width}x${height})`);
+            console.log(`🧠 Generating image with prompt: "${prompt}" (Dimensions: 1024x1024)`);
 
-            // Validate dimensions
-            const safeWidth = Math.max(512, Math.min(width, 1024));
-            const safeHeight = Math.max(512, Math.min(height, 1024));
-
-            // Run the AI model
+            // Run the AI model with fixed dimensions
             const response = await env.AI.run("@cf/stabilityai/stable-diffusion-xl-base-1.0", { 
                 prompt, 
-                width: safeWidth, 
-                height: safeHeight 
+                width: 1024, 
+                height: 1024 
             });
 
             // Handle empty response
@@ -29,7 +25,7 @@ export default {
                 console.error("⚠️ AI model returned empty response.");
                 return new Response(JSON.stringify({
                     error: "AI model returned no data. Possibly due to invalid input or model issues.",
-                    suggested_fix: "Try simplifying the prompt or adjusting dimensions (max 1024x1024)."
+                    suggested_fix: "Try simplifying the prompt."
                 }), { status: 500 });
             }
 
