@@ -4,21 +4,21 @@ export default {
             // Parse the incoming request body
             const { prompt, width = 1024, height = 1024 } = await request.json();
 
-            // Validate the input
-            if (!prompt) {
-                return new Response(JSON.stringify({ error: "Missing 'prompt' parameter" }), { status: 400 });
-            }
+            // Set a default prompt if none is provided
+            const finalPrompt = prompt && prompt.trim() !== "" 
+                ? prompt 
+                : "Oops! Missing prompt! Here's a placeholder portrait.";
 
             // Prepare the AI inputs
-            const inputs = { prompt, width, height };
+            const inputs = { prompt: finalPrompt, width, height };
 
             // Run the Stable Diffusion model via Cloudflare Workers AI
             const response = await env.AI.run("@cf/stabilityai/stable-diffusion-xl-base-1.0", inputs);
 
-            // Return the image as a base64-encoded string
+            // Convert the response into a base64 image string
             const base64Image = `data:image/png;base64,${response}`;
 
-            // Respond with the base64 image URL
+            // Respond with the base64-encoded image
             return new Response(JSON.stringify({ image_url: base64Image }), {
                 headers: { "Content-Type": "application/json" }
             });
@@ -28,4 +28,3 @@ export default {
         }
     }
 } satisfies ExportedHandler;
-
