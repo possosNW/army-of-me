@@ -8,13 +8,13 @@ export default {
                 }), { status: 200, headers: { "Content-Type": "application/json" } });
             }
 
-            // Parse the JSON request body
+            // Parse JSON body
             const { prompt, width = 1024, height = 1024 } = await request.json().catch((err) => {
                 console.error("Failed to parse JSON:", err);
                 return {};
             });
 
-            // Set a default prompt if none provided
+            // Set a default prompt if none is provided
             const finalPrompt = prompt && prompt.trim() !== "" 
                 ? prompt 
                 : "Oops! Missing prompt! Here's a placeholder portrait.";
@@ -28,8 +28,13 @@ export default {
             console.log("Sending request to Cloudflare AI model...");
             const response = await env.AI.run("@cf/stabilityai/stable-diffusion-xl-base-1.0", inputs);
 
-            // Convert binary response to base64
-            const base64Image = Buffer.from(response).toString("base64");
+            // Convert binary response (Uint8Array) to base64
+            const binary = new Uint8Array(response);
+            let binaryString = '';
+            for (let i = 0; i < binary.length; i++) {
+                binaryString += String.fromCharCode(binary[i]);
+            }
+            const base64Image = btoa(binaryString);
             const dataUri = `data:image/png;base64,${base64Image}`;
 
             // Validate response size
