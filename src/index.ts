@@ -26,8 +26,8 @@ export default {
             // Call Cloudflare AI Model
             const response = await env.AI.run("@cf/stabilityai/stable-diffusion-xl-base-1.0", { 
                 prompt, 
-                width: validWidth, 
-                height: validHeight 
+                validWidth, 
+                validHeight 
             });
 
             // Check for empty response
