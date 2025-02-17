@@ -3,7 +3,7 @@ export default {
         try {
             if (request.method === "GET") {
                 return new Response(JSON.stringify({
-                    message: "Welcome to the Army of Me Image Generator! Now using `flux-schnell` for improved speed!"
+                    message: "Welcome to the Army of Me Image Generator! Now using `flux-1-schnell` for faster performance!"
                 }), { status: 200, headers: { "Content-Type": "application/json" } });
             }
 
@@ -18,18 +18,18 @@ export default {
 
             // Call the AI model
             const inputs = { prompt, width: safeWidth, height: safeHeight };
-            const response = await env.AI.run("@cf/flux-schnell/image-generation", inputs);
+            const response = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", inputs);
 
             // Check response
             if (!response || response.length === 0) {
-                console.error(`Flux-Schnell returned empty response for prompt: "${prompt}"`);
+                console.error(`Flux-1-Schnell returned empty response for prompt: "${prompt}"`);
                 return new Response(JSON.stringify({
-                    error: `Flux-Schnell returned no data for prompt: "${prompt}"`,
+                    error: `Flux-1-Schnell returned no data for prompt: "${prompt}"`,
                     fallback_image: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AA..."
                 }), { status: 500 });
             }
 
-            console.log(`Flux-Schnell returned ${response.length} bytes of data.`);
+            console.log(`Flux-1-Schnell returned ${response.length} bytes of data.`);
 
             // Convert binary PNG to Base64
             const bytes = new Uint8Array(response);
@@ -46,7 +46,7 @@ export default {
             });
 
         } catch (error) {
-            console.error("Unexpected error during flux-schnell image generation:", error);
+            console.error("Unexpected error during flux-1-schnell image generation:", error);
             return new Response(JSON.stringify({ error: error.message }), { status: 500 });
         }
     }
