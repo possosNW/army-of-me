@@ -1,23 +1,31 @@
 export default {
-    async fetch(request: Request) {
+    async fetch(request: Request, env) {
         try {
-            // Parse the incoming JSON
+            // Parse the incoming request body
             const { prompt, width = 1024, height = 1024 } = await request.json();
 
-            // Specify the AI model
-            const model = "@cf/stabilityai/stable-diffusion-xl-base-1.0";
+            // Validate the input
+            if (!prompt) {
+                return new Response(JSON.stringify({ error: "Missing 'prompt' parameter" }), { status: 400 });
+            }
 
-            // Run the AI model with the provided parameters
-            const response = await AI.run(model, { prompt, width, height });
+            // Prepare the AI inputs
+            const inputs = { prompt, width, height };
 
-            // Respond with the image URL
-            return new Response(JSON.stringify({ image_url: response }), {
+            // Run the Stable Diffusion model via Cloudflare Workers AI
+            const response = await env.AI.run("@cf/stabilityai/stable-diffusion-xl-base-1.0", inputs);
+
+            // Return the image as a base64-encoded string
+            const base64Image = `data:image/png;base64,${response}`;
+
+            // Respond with the base64 image URL
+            return new Response(JSON.stringify({ image_url: base64Image }), {
                 headers: { "Content-Type": "application/json" }
             });
 
         } catch (error) {
-            // Handle any errors gracefully
             return new Response(JSON.stringify({ error: error.message }), { status: 500 });
         }
     }
-};
+} satisfies ExportedHandler;
+
