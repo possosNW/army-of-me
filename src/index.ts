@@ -3,11 +3,11 @@ export default {
         try {
             if (request.method === "GET") {
                 return new Response(JSON.stringify({
-                    message: "Welcome to the Army of Me Image Generator! Use a POST request with a JSON body to generate images."
+                    message: "Welcome to the Army of Me Image Generator! Now using `flux-schnell` for improved speed!"
                 }), { status: 200, headers: { "Content-Type": "application/json" } });
             }
 
-            // Parse JSON body with fallback values
+            // Parse JSON body with fallback prompt
             const { prompt = "A fantasy portrait of a human warrior in armor", width = 512, height = 512 } = await request.json().catch(() => ({}));
 
             console.log(`Prompt: "${prompt}", Dimensions: ${width}x${height}`);
@@ -18,16 +18,18 @@ export default {
 
             // Call the AI model
             const inputs = { prompt, width: safeWidth, height: safeHeight };
-            const response = await env.AI.run("@cf/stabilityai/stable-diffusion-xl-base-1.0", inputs);
+            const response = await env.AI.run("@cf/flux-schnell/image-generation", inputs);
 
+            // Check response
             if (!response || response.length === 0) {
-                console.error("AI model returned empty response.");
+                console.error(`Flux-Schnell returned empty response for prompt: "${prompt}"`);
                 return new Response(JSON.stringify({
-                    error: "AI model returned no data. Possibly due to invalid input or model issues."
+                    error: `Flux-Schnell returned no data for prompt: "${prompt}"`,
+                    fallback_image: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AA..."
                 }), { status: 500 });
             }
 
-            console.log(`AI model returned ${response.length} bytes of data.`);
+            console.log(`Flux-Schnell returned ${response.length} bytes of data.`);
 
             // Convert binary PNG to Base64
             const bytes = new Uint8Array(response);
@@ -44,7 +46,7 @@ export default {
             });
 
         } catch (error) {
-            console.error("Unexpected error during image generation:", error);
+            console.error("Unexpected error during flux-schnell image generation:", error);
             return new Response(JSON.stringify({ error: error.message }), { status: 500 });
         }
     }
