@@ -29,23 +29,16 @@ export default {
 
             console.log(`AI model returned ${response.length} bytes of data.`);
 
-            // Convert binary PNG to WebP
-            const image = new ImageTransformer(response);
-            const webpImage = await image.transform({
-                format: 'webp',
-                quality: 90
-            });
-
-            // Convert WebP binary to Base64
-            const bytes = new Uint8Array(webpImage);
+            // Convert binary PNG to Base64
+            const bytes = new Uint8Array(response);
             let binaryString = '';
             for (let i = 0; i < bytes.length; i++) {
                 binaryString += String.fromCharCode(bytes[i]);
             }
             const base64Image = btoa(binaryString);
-            const dataUri = `data:image/webp;base64,${base64Image}`;
+            const dataUri = `data:image/png;base64,${base64Image}`;
 
-            // Respond with base64-encoded WebP image
+            // Respond with base64-encoded PNG image
             return new Response(JSON.stringify({ image_url: dataUri }), {
                 headers: { "Content-Type": "application/json" }
             });
