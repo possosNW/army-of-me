@@ -106,7 +106,7 @@ async function handleNameGeneration(request, env, allowedOrigin) {
     }
 }
 
-async function handlePromptEnhancement(request, env, allowedOrigin) {
+async function handlePromptEnhancer(request, env, allowedOrigin) {
     try {
         // Parse the request body
         const { prompt = "A mighty dwarf paladin" } = await request.json();
