@@ -56,46 +56,6 @@ export default {
     }
 } satisfies ExportedHandler;
 
-async function handleNameGeneration(request: Request, env, allowedOrigin: string) {
-    try {
-        const { race = "human", gender = "male" } = await request.json();
-
-        console.log(`📛 Generating name for a ${gender} ${race} NPC...`);
-
-        // Use Mistral-7B to generate a name
-        const nameResponse = await env.AI.run(
-            "@cf/mistral/mistral-7b-instruct-v0.1",
-            {
-                messages: [
-                    { role: "system", content: "Generate a unique and immersive fantasy-style name based on race and gender." },
-                    { role: "user", content: `Generate a ${gender} ${race} name with a surname.` }
-                ]
-            }
-        );
-
-        if (!nameResponse || !nameResponse.choices || !nameResponse.choices[0]?.message?.content) {
-            throw new Error("Failed to generate a name.");
-        }
-
-        const generatedName = nameResponse.choices[0].message.content.trim();
-        console.log(`✅ Generated Name: "${generatedName}"`);
-
-        return new Response(JSON.stringify({ name: generatedName }), {
-            headers: {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": allowedOrigin
-            }
-        });
-
-    } catch (error) {
-        console.error("⚠️ Name generation failed:", error);
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: { "Access-Control-Allow-Origin": allowedOrigin }
-        });
-    }
-}
-
 async function handleNameGeneration(request, env, allowedOrigin) {
     try {
         // Parse request body with defaults
