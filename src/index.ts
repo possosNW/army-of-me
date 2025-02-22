@@ -61,16 +61,17 @@ async function handleNameGeneration(request, env, allowedOrigin) {
         // Parse request body with defaults
         const { race = "human", gender = "male" } = await request.json();
 
-        // Log request details
         console.log(`📛 Generating name for a ${gender} ${race} NPC...`);
 
-        // Use Mistral-7B for name generation
+        // Use Mistral-7B for name generation with increased randomness
         const nameResponse = await env.AI.run("@cf/mistral/mistral-7b-instruct-v0.1", {
             messages: [
-                { role: "system", content: "You are a fantasy name generator. Provide a single unique and immersive name for a {race} {gender} RPG character." },
-                { role: "user", content: `Generate a name for a ${gender} ${race}.` }
+                { role: "system", content: "You are a fantasy RPG name generator. Provide ONLY a single unique name, without introductions or explanations. Ensure the names are immersive and diverse." },
+                { role: "user", content: `Generate a unique and immersive fantasy name for a ${gender} ${race}.` }
             ],
-            max_tokens: 10
+            max_tokens: 10,
+            temperature: 0.9,  // Higher value increases randomness
+            top_p: 0.85         // Nucleus sampling for diverse choices
         });
 
         console.log("🛠 AI Response:", nameResponse);
@@ -81,10 +82,14 @@ async function handleNameGeneration(request, env, allowedOrigin) {
             return new Response(JSON.stringify({ error: "Failed to generate a name." }), { status: 500 });
         }
 
-        const generatedName = nameResponse.response.trim();
+        // Trim output and remove unwanted text
+        let generatedName = nameResponse.response.trim();
+
+        // Ensure only a name is returned
+        generatedName = generatedName.replace(/^(Introducing |Here’s a name: )/, "").trim();
+
         console.log(`✅ Generated Name: "${generatedName}"`);
 
-        // Return name with CORS headers
         return new Response(JSON.stringify({ name: generatedName }), {
             headers: {
                 "Content-Type": "application/json",
