@@ -62,21 +62,26 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
 
         const aiResponse = await env.AI.run("@cf/mistral/mistral-7b-instruct-v0.1", {
             messages: [
-                { role: "system", content: "Enhance this AI-generated image prompt with cinematic details, lighting, and ultra-realistic textures." },
+                { role: "system", content: "Enhance this prompt for AI-generated art. The output should be **one** single descriptive line, adding cinematic lighting, dramatic effects, and realistic details. Do NOT include titles, scene descriptions, or introductions. Just return the enhanced prompt." },
                 { role: "user", content: `Enhance this AI image prompt: "${prompt}"` }
             ],
-            max_tokens: 100,
-            temperature: 0.85
+            max_tokens: 60,
+            temperature: 0.8
         });
 
-        console.log("🖌 AI Response:", JSON.stringify(aiResponse, null, 2));
+        console.log("🖌 AI Raw Response:", JSON.stringify(aiResponse, null, 2));
 
-        if (!aiResponse?.choices?.[0]?.message?.content) {
+        // Extracting the correct response
+        if (!aiResponse?.response) {
             console.error("⚠️ AI failed to enhance the prompt.");
             return new Response(JSON.stringify({ error: "Failed to generate enhanced prompt." }), { status: 500 });
         }
 
-        let enhancedPrompt = aiResponse.choices[0].message.content.trim();
+        let enhancedPrompt = aiResponse.response.trim();
+
+        // Remove unwanted prefixes like "Title:" or "Scene Description:"
+        enhancedPrompt = enhancedPrompt.replace(/^Title:|Scene Description:/i, "").trim();
+
         console.log(`✅ Enhanced Prompt: "${enhancedPrompt}"`);
 
         return new Response(JSON.stringify({ enhanced_prompt: enhancedPrompt }), {
