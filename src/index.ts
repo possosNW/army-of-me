@@ -96,6 +96,53 @@ async function handleNameGeneration(request: Request, env, allowedOrigin: string
     }
 }
 
+async function handleNameGeneration(request, env, allowedOrigin) {
+    try {
+        // Parse request body with defaults
+        const { race = "human", gender = "male" } = await request.json();
+
+        // Log request details
+        console.log(`📛 Generating name for a ${gender} ${race} NPC...`);
+
+        // Use Mistral-7B for name generation
+        const nameResponse = await env.AI.run("@cf/mistral/mistral-7b-instruct-v0.1", {
+            messages: [
+                { role: "system", content: "You are a fantasy name generator. Provide a single unique and immersive name for a {race} {gender} RPG character." },
+                { role: "user", content: `Generate a name for a ${gender} ${race}.` }
+            ],
+            max_tokens: 10
+        });
+
+        console.log("🛠 AI Response:", nameResponse);
+
+        // Validate AI response
+        if (!nameResponse || !nameResponse.response) {
+            console.error("⚠️ AI failed to generate a name.");
+            return new Response(JSON.stringify({ error: "Failed to generate a name." }), { status: 500 });
+        }
+
+        const generatedName = nameResponse.response.trim();
+        console.log(`✅ Generated Name: "${generatedName}"`);
+
+        // Return name with CORS headers
+        return new Response(JSON.stringify({ name: generatedName }), {
+            headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": allowedOrigin,
+                "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type"
+            }
+        });
+
+    } catch (error) {
+        console.error("⚠️ Name generation failed:", error);
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { "Access-Control-Allow-Origin": allowedOrigin }
+        });
+    }
+}
+
 async function handlePromptEnhancer(request: Request, env, allowedOrigin: string) {
     try {
         const { prompt } = await request.json();
