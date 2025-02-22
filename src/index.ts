@@ -62,16 +62,17 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
 
         const aiResponse = await env.AI.run("@cf/mistral/mistral-7b-instruct-v0.1", {
             messages: [
-                { role: "system", content: "Enhance this prompt for AI-generated art. The output should be **one** single descriptive line, adding cinematic lighting, dramatic effects, and realistic details. Do NOT include titles, scene descriptions, or introductions. Just return the enhanced prompt." },
+                { role: "system", content: "Enhance this text into a **highly detailed, single-line AI image prompt**. The response should be no more than **15 words**, adding **cinematic lighting, realistic textures, and artistic effects.** Do NOT include full sentences, stories, or setting descriptions—ONLY a refined prompt for an image generation model." },
                 { role: "user", content: `Enhance this AI image prompt: "${prompt}"` }
             ],
-            max_tokens: 60,
-            temperature: 0.8
+            max_tokens: 30, // Strict limit to prevent full descriptions
+            temperature: 0.9, // Slightly increase creativity
+            top_p: 0.7
         });
 
         console.log("🖌 AI Raw Response:", JSON.stringify(aiResponse, null, 2));
 
-        // Extracting the correct response
+        // Validate response
         if (!aiResponse?.response) {
             console.error("⚠️ AI failed to enhance the prompt.");
             return new Response(JSON.stringify({ error: "Failed to generate enhanced prompt." }), { status: 500 });
@@ -79,10 +80,10 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
 
         let enhancedPrompt = aiResponse.response.trim();
 
-        // Remove unwanted prefixes like "Title:" or "Scene Description:"
-        enhancedPrompt = enhancedPrompt.replace(/^Title:|Scene Description:/i, "").trim();
+        // **Force trimming to 30 words max**
+        enhancedPrompt = enhancedPrompt.split(/\s+/).slice(0, 30).join(" ");
 
-        console.log(`✅ Enhanced Prompt: "${enhancedPrompt}"`);
+        console.log(`✅ Final Enhanced Prompt: "${enhancedPrompt}"`);
 
         return new Response(JSON.stringify({ enhanced_prompt: enhancedPrompt }), {
             headers: {
@@ -101,6 +102,7 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
         });
     }
 }
+
 
 async function handleImageGeneration(request: Request, env, allowedOrigin: string) {
     try {
