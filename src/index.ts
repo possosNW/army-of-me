@@ -63,15 +63,15 @@ async function handleNameGeneration(request, env, allowedOrigin) {
 
         console.log(`📛 Generating name for a ${gender} ${race} NPC...`);
 
-        // Use Mistral-7B for name generation with increased randomness
+        // Use Mistral-7B for name generation with additional randomness tweaks
         const nameResponse = await env.AI.run("@cf/mistral/mistral-7b-instruct-v0.1", {
             messages: [
-                { role: "system", content: "You are a fantasy RPG name generator. Provide ONLY a single unique name, without introductions or explanations. Ensure the names are immersive and diverse." },
-                { role: "user", content: `Generate a unique and immersive fantasy name for a ${gender} ${race}.` }
+                { role: "system", content: "You are an expert fantasy RPG name generator. Generate highly unique and immersive names. Do NOT provide introductions, explanations, or context—just the name." },
+                { role: "user", content: `Generate a highly unique fantasy name for a ${gender} ${race}. The name should be completely distinct from previous outputs and should not be a common name.` }
             ],
-            max_tokens: 10,
-            temperature: 0.9,  // Higher value increases randomness
-            top_p: 0.85         // Nucleus sampling for diverse choices
+            max_tokens: 12,  // Allowing slightly longer names
+            temperature: 1.2, // Increased randomness for unique names
+            top_p: 0.75       // Reducing top_p slightly to allow more diverse results
         });
 
         console.log("🛠 AI Response:", nameResponse);
@@ -82,11 +82,9 @@ async function handleNameGeneration(request, env, allowedOrigin) {
             return new Response(JSON.stringify({ error: "Failed to generate a name." }), { status: 500 });
         }
 
-        // Trim output and remove unwanted text
+        // Extract and clean up generated name
         let generatedName = nameResponse.response.trim();
-
-        // Ensure only a name is returned
-        generatedName = generatedName.replace(/^(Introducing |Here’s a name: )/, "").trim();
+        generatedName = generatedName.replace(/^(Introducing |Here’s a name: |The name is )/, "").trim();
 
         console.log(`✅ Generated Name: "${generatedName}"`);
 
