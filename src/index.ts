@@ -2,7 +2,6 @@ export default {
     async fetch(request: Request, env) {
         const allowedOrigin = "https://littlebigparty.duckdns.org";
 
-        // Handle CORS preflight requests
         if (request.method === "OPTIONS") {
             return new Response(null, {
                 status: 204,
@@ -56,87 +55,30 @@ export default {
     }
 } satisfies ExportedHandler;
 
-async function handleNameGeneration(request, env, allowedOrigin) {
-    try {
-        // Parse request body with defaults
-        const { race = "human", gender = "male" } = await request.json();
-
-        console.log(`📛 Generating name for a ${gender} ${race} NPC...`);
-
-        // Use Mistral-7B for name generation with additional randomness tweaks
-        const nameResponse = await env.AI.run("@cf/mistral/mistral-7b-instruct-v0.1", {
-            messages: [
-                { role: "system", content: "You are an expert fantasy RPG name generator. Generate highly unique and immersive names. Do NOT provide introductions, explanations, or context—just the name." },
-                { role: "user", content: `Generate a highly unique fantasy name for a ${gender} ${race}. The name should be completely distinct from previous outputs and should not be a common name.` }
-            ],
-            max_tokens: 12,  // Allowing slightly longer names
-            temperature: 1.2, // Increased randomness for unique names
-            top_p: 0.75       // Reducing top_p slightly to allow more diverse results
-        });
-
-        console.log("🛠 AI Response:", nameResponse);
-
-        // Validate AI response
-        if (!nameResponse || !nameResponse.response) {
-            console.error("⚠️ AI failed to generate a name.");
-            return new Response(JSON.stringify({ error: "Failed to generate a name." }), { status: 500 });
-        }
-
-        // Extract and clean up generated name
-        let generatedName = nameResponse.response.trim();
-        generatedName = generatedName.replace(/^(Introducing |Here’s a name: |The name is )/, "").trim();
-
-        console.log(`✅ Generated Name: "${generatedName}"`);
-
-        return new Response(JSON.stringify({ name: generatedName }), {
-            headers: {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": allowedOrigin,
-                "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type"
-            }
-        });
-
-    } catch (error) {
-        console.error("⚠️ Name generation failed:", error);
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: { "Access-Control-Allow-Origin": allowedOrigin }
-        });
-    }
-}
-
 async function handlePromptEnhancer(request, env, allowedOrigin) {
     try {
-        // Parse the request body
         const { prompt = "A mighty dwarf paladin" } = await request.json();
-        
-        // Log the received input
         console.log(`🎨 Enhancing prompt: "${prompt}"`);
 
-        // Generate an enhanced prompt using Mistral-7B
         const aiResponse = await env.AI.run("@cf/mistral/mistral-7b-instruct-v0.1", {
             messages: [
-                { role: "system", content: "You are an expert in crafting highly detailed, visually stunning prompts for AI-generated artwork. Enhance the given description by adding style, lighting, and mood elements." },
-                { role: "user", content: `Enhance this AI image generation prompt: "${prompt}"` }
+                { role: "system", content: "Enhance this AI-generated image prompt with cinematic details, lighting, and ultra-realistic textures." },
+                { role: "user", content: `Enhance this AI image prompt: "${prompt}"` }
             ],
             max_tokens: 100,
-            temperature: 0.8
+            temperature: 0.85
         });
 
-        console.log("🖌 AI Response:", aiResponse);
+        console.log("🖌 AI Response:", JSON.stringify(aiResponse, null, 2));
 
-        // Validate AI response
-        if (!aiResponse || !Array.isArray(aiResponse.choices) || !aiResponse.choices[0]?.message?.content) {
+        if (!aiResponse?.choices?.[0]?.message?.content) {
             console.error("⚠️ AI failed to enhance the prompt.");
             return new Response(JSON.stringify({ error: "Failed to generate enhanced prompt." }), { status: 500 });
         }
 
-        // Extract the enhanced prompt
-        const enhancedPrompt = aiResponse.choices[0].message.content.trim();
+        let enhancedPrompt = aiResponse.choices[0].message.content.trim();
         console.log(`✅ Enhanced Prompt: "${enhancedPrompt}"`);
 
-        // Return the enhanced prompt with CORS headers
         return new Response(JSON.stringify({ enhanced_prompt: enhancedPrompt }), {
             headers: {
                 "Content-Type": "application/json",
@@ -148,7 +90,7 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
 
     } catch (error) {
         console.error("⚠️ Prompt enhancement failed:", error);
-        return new Response(JSON.stringify({ error: error.message }), {
+        return new Response(JSON.stringify({ error: "Failed to generate enhanced prompt." }), {
             status: 500,
             headers: { "Access-Control-Allow-Origin": allowedOrigin }
         });
@@ -160,25 +102,19 @@ async function handleImageGeneration(request: Request, env, allowedOrigin: strin
         const { prompt = "A fantasy portrait of a human warrior" } = await request.json();
         console.log(`🎨 Enhancing prompt before image generation: "${prompt}"`);
 
-        // Step 1: Enhance the prompt
-        const enhancedResponse = await env.AI.run(
-            "@cf/mistral/mistral-7b-instruct-v0.1",
-            {
-                messages: [
-                    { role: "system", content: "Enhance this prompt for a highly detailed fantasy-style AI-generated portrait." },
-                    { role: "user", content: prompt }
-                ]
-            }
-        );
+        // Step 1: Use prompt enhancer before generating the image
+        const enhancerResponse = await handlePromptEnhancer(request, env, allowedOrigin);
+        const { enhanced_prompt } = await enhancerResponse.json();
 
-        const enhancedPrompt = enhancedResponse?.choices?.[0]?.message?.content || prompt;
-        console.log(`✅ Final prompt used for image: "${enhancedPrompt}"`);
+        const finalPrompt = enhanced_prompt || prompt;
+        console.log(`✅ Final prompt used for image: "${finalPrompt}"`);
 
         // Step 2: Generate the image with the enhanced prompt
-        const response = await env.AI.run(
-            "@cf/stabilityai/stable-diffusion-xl-base-1.0",
-            { prompt: enhancedPrompt, width: 1024, height: 1024 }
-        );
+        const response = await env.AI.run("@cf/stabilityai/stable-diffusion-xl-base-1.0", {
+            prompt: finalPrompt,
+            width: 1024,
+            height: 1024
+        });
 
         if (!response || response.length === 0) {
             console.error("⚠️ AI model returned empty response.");
