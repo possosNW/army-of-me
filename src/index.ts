@@ -153,14 +153,16 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
     }
 }
 
-
-async function handleImageGeneration(request: Request, env, allowedOrigin: string) {
+async function handleImageGeneration(request, env, allowedOrigin) {
     try {
-        const { prompt = "A fantasy portrait of a human warrior" } = await request.json();
+        // Clone the request to read the body multiple times
+        const clonedRequest = request.clone();
+        const { prompt = "A fantasy portrait of a human warrior" } = await clonedRequest.json();
+
         console.log(`🎨 Enhancing prompt before image generation: "${prompt}"`);
 
         // Step 1: Use prompt enhancer before generating the image
-        const enhancerResponse = await handlePromptEnhancer(request, env, allowedOrigin);
+        const enhancerResponse = await handlePromptEnhancer(clonedRequest, env, allowedOrigin);
         const { enhanced_prompt } = await enhancerResponse.json();
 
         const finalPrompt = enhanced_prompt || prompt;
