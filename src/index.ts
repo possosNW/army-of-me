@@ -55,6 +55,56 @@ export default {
     }
 } satisfies ExportedHandler;
 
+async function handleNameGeneration(request, env, allowedOrigin) {
+    try {
+        // Parse request body with defaults
+        const { race = "human", gender = "male" } = await request.json();
+
+        console.log(`📛 Generating name for a ${gender} ${race} NPC...`);
+
+        // Use Mistral-7B for name generation with additional randomness tweaks
+        const nameResponse = await env.AI.run("@cf/mistral/mistral-7b-instruct-v0.1", {
+            messages: [
+                { role: "system", content: "You are an expert fantasy RPG name generator. Generate highly unique and immersive names. Do NOT provide introductions, explanations, or context—just the name." },
+                { role: "user", content: `Generate a highly unique fantasy name for a ${gender} ${race}. The name should be completely distinct from previous outputs and should not be a common name.` }
+            ],
+            max_tokens: 12,  // Allowing slightly longer names
+            temperature: 1.2, // Increased randomness for unique names
+            top_p: 0.75       // Reducing top_p slightly to allow more diverse results
+        });
+
+        console.log("🛠 AI Response:", nameResponse);
+
+        // Validate AI response
+        if (!nameResponse || !nameResponse.response) {
+            console.error("⚠️ AI failed to generate a name.");
+            return new Response(JSON.stringify({ error: "Failed to generate a name." }), { status: 500 });
+        }
+
+        // Extract and clean up generated name
+        let generatedName = nameResponse.response.trim();
+        generatedName = generatedName.replace(/^(Introducing |Here’s a name: |The name is )/, "").trim();
+
+        console.log(`✅ Generated Name: "${generatedName}"`);
+
+        return new Response(JSON.stringify({ name: generatedName }), {
+            headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": allowedOrigin,
+                "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type"
+            }
+        });
+
+    } catch (error) {
+        console.error("⚠️ Name generation failed:", error);
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { "Access-Control-Allow-Origin": allowedOrigin }
+        });
+    }
+}
+
 async function handlePromptEnhancer(request, env, allowedOrigin) {
     try {
         const { prompt = "A mighty dwarf paladin" } = await request.json();
