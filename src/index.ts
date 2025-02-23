@@ -57,8 +57,9 @@ export default {
 
 async function handleNameGeneration(request, env, allowedOrigin) {
     try {
-        // Parse request body with defaults
-        const { race = "human", gender = "male" } = await request.json();
+        // Clone the request to read the body multiple times
+        const clonedRequest = request.clone();
+        const { race = "human", gender = "male" } = await clonedRequest.json();
 
         console.log(`📛 Generating name for a ${gender} ${race} NPC...`);
 
@@ -76,13 +77,13 @@ async function handleNameGeneration(request, env, allowedOrigin) {
         console.log("🛠 AI Response:", nameResponse);
 
         // Validate AI response
-        if (!nameResponse || !nameResponse.response) {
+        if (!nameResponse || !nameResponse.choices?.[0]?.message?.content) {
             console.error("⚠️ AI failed to generate a name.");
             return new Response(JSON.stringify({ error: "Failed to generate a name." }), { status: 500 });
         }
 
         // Extract and clean up generated name
-        let generatedName = nameResponse.response.trim();
+        let generatedName = nameResponse.choices[0].message.content.trim();
         generatedName = generatedName.replace(/^(Introducing |Here’s a name: |The name is )/, "").trim();
 
         console.log(`✅ Generated Name: "${generatedName}"`);
@@ -107,7 +108,10 @@ async function handleNameGeneration(request, env, allowedOrigin) {
 
 async function handlePromptEnhancer(request, env, allowedOrigin) {
     try {
-        const { prompt = "A mighty dwarf paladin" } = await request.json();
+        // Clone the request to read the body multiple times
+        const clonedRequest = request.clone();
+        const { prompt = "A mighty dwarf paladin" } = await clonedRequest.json();
+
         console.log(`🎨 Enhancing prompt: "${prompt}"`);
 
         const aiResponse = await env.AI.run("@cf/mistral/mistral-7b-instruct-v0.1", {
@@ -152,7 +156,6 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
         });
     }
 }
-
 
 async function handleImageGeneration(request, env, allowedOrigin) {
     try {
