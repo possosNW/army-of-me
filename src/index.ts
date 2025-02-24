@@ -57,33 +57,30 @@ export default {
 
 async function handleNameGeneration(request, env, allowedOrigin) {
     try {
-        // Clone the request to read the body multiple times
-        const clonedRequest = request.clone();
-        const { race = "human", gender = "male" } = await clonedRequest.json();
-
+        const { race = "human", gender = "male" } = await request.json();
         console.log(`📛 Generating name for a ${gender} ${race} NPC...`);
 
-        // Use Mistral-7B for name generation with additional randomness tweaks
+        // AI Call
         const nameResponse = await env.AI.run("@cf/mistral/mistral-7b-instruct-v0.1", {
             messages: [
-                { role: "system", content: "You are an expert fantasy RPG name generator. Generate highly unique and immersive names. Do NOT provide introductions, explanations, or context—just the name." },
-                { role: "user", content: `Generate a highly unique fantasy name for a ${gender} ${race}. The name should be completely distinct from previous outputs and should not be a common name.` }
+                { role: "system", content: "You are a highly skilled fantasy name generator for RPG characters. Generate only the name without additional text." },
+                { role: "user", content: `Generate a unique name for a ${gender} ${race} in a fantasy setting.` }
             ],
-            max_tokens: 12,  // Allowing slightly longer names
-            temperature: 1.2, // Increased randomness for unique names
-            top_p: 0.75       // Reducing top_p slightly to allow more diverse results
+            max_tokens: 12,
+            temperature: 1.2,
+            top_p: 0.75
         });
 
-        console.log("🛠 AI Response:", nameResponse);
+        console.log("🛠 AI Raw Response:", JSON.stringify(nameResponse, null, 2));
 
-        // Validate AI response
-        if (!nameResponse || !nameResponse.choices?.[0]?.message?.content) {
-            console.error("⚠️ AI failed to generate a name.");
+        // Check if response exists and is structured correctly
+        if (!nameResponse || !nameResponse.response) {
+            console.error("⚠️ AI response is empty or malformed.");
             return new Response(JSON.stringify({ error: "Failed to generate a name." }), { status: 500 });
         }
 
-        // Extract and clean up generated name
-        let generatedName = nameResponse.choices[0].message.content.trim();
+        // Extract and clean the name
+        let generatedName = nameResponse.response.trim();
         generatedName = generatedName.replace(/^(Introducing |Here’s a name: |The name is )/, "").trim();
 
         console.log(`✅ Generated Name: "${generatedName}"`);
