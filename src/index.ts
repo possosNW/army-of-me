@@ -105,45 +105,48 @@ async function handleNameGeneration(request, env, allowedOrigin) {
 
 async function handlePromptEnhancer(request, env, allowedOrigin) {
     try {
-        const { prompt = "A mighty dwarf paladin" } = await request.json();
+        const clonedRequest = request.clone();
+        const { prompt = "A mighty dwarf paladin" } = await clonedRequest.json();
         console.log(`🎨 Enhancing prompt: "${prompt}"`);
 
-        // 🔥 Call AI model for enhancement
+        // Call AI model with enforced style and quality
         const aiResponse = await env.AI.run("@cf/mistral/mistral-7b-instruct-v0.1", {
             messages: [
-                { role: "system", content: "Enhance this AI prompt for a highly detailed fantasy-style image." },
-                { role: "user", content: `Enhance this prompt: "${prompt}"` }
+                { 
+                    role: "system", 
+                    content: `You are an expert in crafting highly detailed, visually stunning AI prompts for fantasy portraits. 
+                              Enhance the given description while ensuring it includes:
+                              - Hyper-realistic, ultra-detailed features
+                              - Cinematic lighting with depth and mood
+                              - Artistic style: Digital painting, high contrast, soft shadows
+                              - Image quality: 8K UHD, trending on ArtStation, fantasy concept art
+                              - Make sure the final prompt describes a **single character** in a **cohesive scene** without unnecessary backstory.` 
+                },
+                { role: "user", content: `Enhance this prompt for AI image generation: "${prompt}"` }
             ],
-            max_tokens: 100,
-            temperature: 0.8
+            max_tokens: 150,  // Increase max tokens to allow full description
+            temperature: 0.8   // Balance between creativity and consistency
         });
 
         console.log("🖌 AI Raw Response:", aiResponse);
 
-        // ✅ Extract enhanced prompt correctly
+        // ✅ Extract the correct response field
         if (!aiResponse || !aiResponse.response) {
             console.error("⚠️ AI failed to enhance the prompt.");
-            return new Response(JSON.stringify({ error: "Failed to generate enhanced prompt." }), {
-                status: 500,
-                headers: {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Origin": allowedOrigin,
-                    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type"
-                }
-            });
+            return new Response(JSON.stringify({ error: "Failed to generate enhanced prompt." }), { status: 500 });
         }
 
-        const enhancedPrompt = aiResponse.response.trim();
+        // ✅ Force additional quality/style elements in the final response
+        let enhancedPrompt = aiResponse.response.trim();
+        enhancedPrompt += " Ultra-high resolution, digital painting, 8K quality, ArtStation trending, cinematic lighting, photorealistic textures.";
+        
         console.log(`✅ Enhanced Prompt: "${enhancedPrompt}"`);
 
-        // 🔥 Return enhanced prompt with proper headers
+        // Return enhanced prompt
         return new Response(JSON.stringify({ enhanced_prompt: enhancedPrompt }), {
             headers: {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": allowedOrigin,
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type"
+                "Access-Control-Allow-Origin": allowedOrigin
             }
         });
 
@@ -151,12 +154,7 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
         console.error("⚠️ Prompt enhancement failed:", error);
         return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
-            headers: {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": allowedOrigin,
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type"
-            }
+            headers: { "Access-Control-Allow-Origin": allowedOrigin }
         });
     }
 }
