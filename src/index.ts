@@ -105,7 +105,8 @@ async function handleNameGeneration(request, env, allowedOrigin) {
 
 async function handlePromptEnhancer(request, env, allowedOrigin) {
     try {
-        const { prompt = "A mighty dwarf paladin" } = await request.json();
+        const clonedRequest = request.clone();
+        const { prompt = "A mighty dwarf paladin" } = await clonedRequest.json();
         console.log(`🎨 Enhancing prompt: "${prompt}"`);
 
         // Call AI model
