@@ -108,49 +108,41 @@ async function handleNameGeneration(request, env, allowedOrigin) {
 
 async function handlePromptEnhancer(request, env, allowedOrigin) {
     try {
-        // Clone the request to read the body multiple times
-        const clonedRequest = request.clone();
-        const { prompt = "A mighty dwarf paladin" } = await clonedRequest.json();
-
+        const { prompt = "A mighty dwarf paladin" } = await request.json();
         console.log(`🎨 Enhancing prompt: "${prompt}"`);
 
+        // Call AI model
         const aiResponse = await env.AI.run("@cf/mistral/mistral-7b-instruct-v0.1", {
             messages: [
-                { role: "system", content: "Enhance this text into a **highly detailed, single-line AI image prompt**. The response should be no more than **30 words**, adding **cinematic lighting, realistic textures, and artistic effects.** Do NOT include full sentences, stories, or setting descriptions—ONLY a refined prompt for an image generation model." },
-                { role: "user", content: `Enhance this AI image prompt: "${prompt}"` }
+                { role: "system", content: "Enhance this AI prompt for a highly detailed fantasy-style image." },
+                { role: "user", content: `Enhance this prompt: "${prompt}"` }
             ],
-            max_tokens: 30, // Strict limit to prevent full descriptions
-            temperature: 0.9, // Slightly increase creativity
-            top_p: 0.7
+            max_tokens: 100,
+            temperature: 0.8
         });
 
-        console.log("🖌 AI Raw Response:", JSON.stringify(aiResponse, null, 2));
+        console.log("🖌 AI Raw Response:", aiResponse);
 
-        // Validate response structure
-        if (!aiResponse?.choices?.[0]?.message?.content) {
+        // ✅ FIX: Extract the correct response field
+        if (!aiResponse || !aiResponse.response) {
             console.error("⚠️ AI failed to enhance the prompt.");
             return new Response(JSON.stringify({ error: "Failed to generate enhanced prompt." }), { status: 500 });
         }
 
-        let enhancedPrompt = aiResponse.choices[0].message.content.trim();
+        const enhancedPrompt = aiResponse.response.trim();
+        console.log(`✅ Enhanced Prompt: "${enhancedPrompt}"`);
 
-        // Trim to 30 words max
-        enhancedPrompt = enhancedPrompt.split(/\s+/).slice(0, 30).join(" ");
-
-        console.log(`✅ Final Enhanced Prompt: "${enhancedPrompt}"`);
-
+        // Return enhanced prompt
         return new Response(JSON.stringify({ enhanced_prompt: enhancedPrompt }), {
             headers: {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": allowedOrigin,
-                "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type"
+                "Access-Control-Allow-Origin": allowedOrigin
             }
         });
 
     } catch (error) {
         console.error("⚠️ Prompt enhancement failed:", error);
-        return new Response(JSON.stringify({ error: "Failed to generate enhanced prompt." }), {
+        return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
             headers: { "Access-Control-Allow-Origin": allowedOrigin }
         });
