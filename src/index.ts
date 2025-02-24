@@ -105,11 +105,10 @@ async function handleNameGeneration(request, env, allowedOrigin) {
 
 async function handlePromptEnhancer(request, env, allowedOrigin) {
     try {
-        const clonedRequest = request.clone();
-        const { prompt = "A mighty dwarf paladin" } = await clonedRequest.json();
+        const { prompt = "A mighty dwarf paladin" } = await request.json();
         console.log(`🎨 Enhancing prompt: "${prompt}"`);
 
-        // Call AI model
+        // 🔥 Call AI model for enhancement
         const aiResponse = await env.AI.run("@cf/mistral/mistral-7b-instruct-v0.1", {
             messages: [
                 { role: "system", content: "Enhance this AI prompt for a highly detailed fantasy-style image." },
@@ -121,20 +120,30 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
 
         console.log("🖌 AI Raw Response:", aiResponse);
 
-        // ✅ FIX: Extract the correct response field
+        // ✅ Extract enhanced prompt correctly
         if (!aiResponse || !aiResponse.response) {
             console.error("⚠️ AI failed to enhance the prompt.");
-            return new Response(JSON.stringify({ error: "Failed to generate enhanced prompt." }), { status: 500 });
+            return new Response(JSON.stringify({ error: "Failed to generate enhanced prompt." }), {
+                status: 500,
+                headers: {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Origin": allowedOrigin,
+                    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type"
+                }
+            });
         }
 
         const enhancedPrompt = aiResponse.response.trim();
         console.log(`✅ Enhanced Prompt: "${enhancedPrompt}"`);
 
-        // Return enhanced prompt
+        // 🔥 Return enhanced prompt with proper headers
         return new Response(JSON.stringify({ enhanced_prompt: enhancedPrompt }), {
             headers: {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": allowedOrigin
+                "Access-Control-Allow-Origin": allowedOrigin,
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type"
             }
         });
 
@@ -142,27 +151,34 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
         console.error("⚠️ Prompt enhancement failed:", error);
         return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
-            headers: { "Access-Control-Allow-Origin": allowedOrigin }
+            headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": allowedOrigin,
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type"
+            }
         });
     }
 }
 
 async function handleImageGeneration(request, env, allowedOrigin) {
     try {
-        // Clone the request to read the body multiple times
-        const clonedRequest = request.clone();
-        const { prompt = "A fantasy portrait of a human warrior" } = await clonedRequest.json();
+        // ✅ Clone request and create a tee (splitting into two streams)
+        const [req1, req2] = request.body.tee();
+        
+        // ✅ Read the JSON body once
+        const { prompt = "A fantasy portrait of a human warrior" } = await new Response(req1).json();
 
         console.log(`🎨 Enhancing prompt before image generation: "${prompt}"`);
 
-        // Step 1: Use prompt enhancer before generating the image
-        const enhancerResponse = await handlePromptEnhancer(clonedRequest, env, allowedOrigin);
+        // ✅ Step 1: Use prompt enhancer before generating the image
+        const enhancerResponse = await handlePromptEnhancer(new Request(request, { body: req2 }), env, allowedOrigin);
         const { enhanced_prompt } = await enhancerResponse.json();
 
         const finalPrompt = enhanced_prompt || prompt;
         console.log(`✅ Final prompt used for image: "${finalPrompt}"`);
 
-        // Step 2: Generate the image with the enhanced prompt
+        // ✅ Step 2: Generate the image with the enhanced prompt
         const response = await env.AI.run("@cf/stabilityai/stable-diffusion-xl-base-1.0", {
             prompt: finalPrompt,
             width: 1024,
@@ -196,3 +212,4 @@ async function handleImageGeneration(request, env, allowedOrigin) {
         });
     }
 }
+
