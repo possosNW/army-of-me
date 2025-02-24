@@ -57,31 +57,42 @@ export default {
 
 async function handleNameGeneration(request, env, allowedOrigin) {
     try {
+        // Parse request body with defaults
         const { race = "human", gender = "male" } = await request.json();
+
         console.log(`📛 Generating name for a ${gender} ${race} NPC...`);
 
-        // AI Call
+        // Call AI model with explicit instruction to return only ONE first + last name
         const nameResponse = await env.AI.run("@cf/mistral/mistral-7b-instruct-v0.1", {
             messages: [
-                { role: "system", content: "You are a highly skilled fantasy name generator for RPG characters. Generate only the name without additional text." },
-                { role: "user", content: `Generate a unique name for a ${gender} ${race} in a fantasy setting.` }
+                { 
+                    role: "system", 
+                    content: `You are an expert in fantasy RPG name generation. Generate **one unique** first and last name for an RPG character. 
+                              - Do NOT provide explanations, alternative names, or extra words. 
+                              - Output ONLY the name in the format: "Firstname Lastname".` 
+                },
+                { role: "user", content: `Provide a full fantasy name (first and last) for a ${gender} ${race}.` }
             ],
-            max_tokens: 12,
-            temperature: 1.2,
-            top_p: 0.75
+            max_tokens: 12,  // Ensure it only outputs a two-part name
+            temperature: 1.2, // Increase randomness for name variety
+            top_p: 0.75       // Control variety while avoiding extra words
         });
 
-        console.log("🛠 AI Raw Response:", JSON.stringify(nameResponse, null, 2));
+        console.log("🛠 AI Raw Response:", nameResponse);
 
-        // Check if response exists and is structured correctly
+        // ✅ Extract and clean name
         if (!nameResponse || !nameResponse.response) {
-            console.error("⚠️ AI response is empty or malformed.");
+            console.error("⚠️ AI failed to generate a name.");
             return new Response(JSON.stringify({ error: "Failed to generate a name." }), { status: 500 });
         }
 
-        // Extract and clean the name
         let generatedName = nameResponse.response.trim();
-        generatedName = generatedName.replace(/^(Introducing |Here’s a name: |The name is )/, "").trim();
+
+        // ✅ Remove extra words, keeping only first + last name
+        const nameParts = generatedName.split(/\s+/); // Split by spaces
+        if (nameParts.length > 2) {
+            generatedName = `${nameParts[0]} ${nameParts[1]}`; // Keep first + last name only
+        }
 
         console.log(`✅ Generated Name: "${generatedName}"`);
 
@@ -102,6 +113,7 @@ async function handleNameGeneration(request, env, allowedOrigin) {
         });
     }
 }
+
 
 async function handlePromptEnhancer(request, env, allowedOrigin) {
     try {
