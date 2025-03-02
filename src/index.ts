@@ -139,32 +139,43 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
             mysterious: "foggy atmosphere, partial lighting, deep shadows with highlights"
         };
         
-        // Build the system prompt dynamically
-        const systemPrompt = `You are an expert in crafting highly detailed, visually stunning AI prompts for ${style} portraits.
-                            Enhance the given description into a single cohesive, detailed prompt while including:
+        // Build the system prompt with strict guidelines
+        const systemPrompt = `You are an expert in crafting concise, visually detailed AI image generation prompts.
                             
-                            - Specific character details: facial features, expression, pose, attire, accessories
-                            - Environment: setting, background elements that complement the character
+                            Your task is to enhance the given prompt into a SINGLE PARAGRAPH (max 80 words) that describes ONLY the visual elements.
+                            
+                            INCLUDE:
+                            - Character: specific facial features, expression, pose
+                            - Attire: detailed description of armor/clothing, focus on textures and materials
                             - Lighting: ${moodLighting[mood] || "cinematic lighting with depth"}
-                            - Artistic style: ${styleGuides[style] || "Digital painting, high contrast"}
-                            - Technical specifications: 8K UHD, photorealistic textures, volumetric lighting
+                            - Style: ${styleGuides[style] || "Digital painting, high contrast"}
                             
-                            IMPORTANT:
-                            1. Focus on VISUAL elements only - avoid narrative backstory
-                            2. Keep the description to a SINGLE character in a SINGLE scene
-                            3. Be specific about visual details rather than generic descriptors
-                            4. Format output as a single paragraph without bullet points`;
+                            DO NOT INCLUDE:
+                            - Backstory or narrative elements
+                            - Multiple paragraphs
+                            - Non-visual descriptions
+                            - Generic phrases like "in this image"
+                            
+                            FORMAT:
+                            - Single, concise paragraph
+                            - Focus on specific visual adjectives
+                            - Start with the main subject immediately`;
         
         // Add custom details from request if provided
         const customDetails = details.customInstructions ? `\n\nAlso incorporate these specific elements: ${details.customInstructions}` : "";
         
+        // Example prompt to guide the model
+        const examplePrompt = `\n\nEXAMPLE:
+        Input: "Warrior with sword"
+        Output: "Battle-hardened warrior with chiseled jawline and piercing blue eyes, wielding an ancestral longsword with intricate gold filigree. Heavy plate armor with ornate lion motifs, illuminated by dramatic sunset backlighting creating a golden outline. Photorealistic textures, 8K detail, digital painting."`;
+        
         const aiResponse = await env.AI.run(env.PROMPT_ENHANCER_MODEL || "@cf/mistral/mistral-7b-instruct-v0.1", {
             messages: [
-                { role: "system", content: systemPrompt + customDetails },
+                { role: "system", content: systemPrompt + customDetails + examplePrompt },
                 { role: "user", content: `Enhance this prompt for AI image generation: "${prompt}"` }
             ],
-            max_tokens: 300, // Increased token limit for more detailed responses
-            temperature: 0.7  // Slightly reduced for more consistent outputs
+            max_tokens: 200, // Limited token count to force conciseness
+            temperature: 0.6  // Lower temperature for more reliable outputs
         });
         
         console.log("🖌 AI Raw Response:", aiResponse);
@@ -176,14 +187,15 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
         
         let enhancedPrompt = aiResponse.response.trim();
         
-        // Add technical quality keywords if not already included
-        if (!enhancedPrompt.toLowerCase().includes("8k") && !enhancedPrompt.toLowerCase().includes("resolution")) {
-            enhancedPrompt += " Ultra-high resolution, 8K quality, photorealistic textures.";
-        }
+        // Clean up any artifacts from the response
+        enhancedPrompt = enhancedPrompt.replace(/^(Output:|Enhanced prompt:|Result:)/i, "").trim();
         
-        // Add style keywords if not already included
-        if (!enhancedPrompt.toLowerCase().includes("artstation") && !enhancedPrompt.toLowerCase().includes(style.toLowerCase())) {
-            enhancedPrompt += ` ${styleGuides[style] || "Digital painting, trending on ArtStation"}`;
+        // Ensure the prompt ends with high-quality indicators if not already included
+        const qualityTerms = ["8k", "ultra-high resolution", "photorealistic", "artstation"];
+        const hasQualityTerms = qualityTerms.some(term => enhancedPrompt.toLowerCase().includes(term));
+        
+        if (!hasQualityTerms) {
+            enhancedPrompt += " Ultra-high resolution, 8K quality, photorealistic textures, trending on ArtStation.";
         }
         
         console.log(`✅ Enhanced Prompt: "${enhancedPrompt}"`);
@@ -192,7 +204,8 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
             enhanced_prompt: enhancedPrompt,
             original_prompt: prompt,
             style: style,
-            mood: mood
+            mood: mood,
+            word_count: enhancedPrompt.split(/\s+/).length
         }), {
             headers: {
                 "Content-Type": "application/json",
@@ -203,6 +216,17 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
         console.error("⚠️ Prompt enhancement failed:", error);
         return createErrorResponse(error.message, 500, allowedOrigin);
     }
+}
+
+// Helper function for error responses
+function createErrorResponse(message, status, allowedOrigin) {
+    return new Response(JSON.stringify({ error: message }), {
+        status: status,
+        headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": allowedOrigin
+        }
+    });
 }
 
 async function handleImageGeneration(request, env, allowedOrigin) {
