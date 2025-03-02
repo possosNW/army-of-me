@@ -120,80 +120,100 @@ async function handleNameGeneration(request, env, allowedOrigin) {
 
 async function handlePromptEnhancer(request, env, allowedOrigin) {
     try {
-        const { prompt = "A mighty dwarf paladin", style = "cinematic" } = await request.json();
-        console.log(`🎨 Enhancing prompt: "${prompt}" with style: "${style}"`);
-
-        // Define styles and enhancing words
-        const styles = {
-            "cinematic": "cinematic film still of {prompt}, highly detailed, high budget Hollywood movie, cinemascope, moody, epic, gorgeous, film grain",
-            "anime": "anime artwork of {prompt}, anime style, key visual, vibrant, studio anime, highly detailed",
-            "photographic": "cinematic photo of {prompt}, 35mm photograph, film, professional, 4k, highly detailed",
-            "comic": "comic of {prompt}, graphic illustration, comic art, graphic novel art, vibrant, highly detailed",
-            "lineart": "line art drawing {prompt}, professional, sleek, modern, minimalist, graphic, line art, vector graphics",
-            "pixelart": "pixel-art {prompt}, low-res, blocky, pixel art style, 8-bit graphics",
+        const { prompt = "A mighty dwarf paladin", style = "fantasy", mood = "epic", details = {} } = await request.json();
+        console.log(`🎨 Enhancing prompt: "${prompt}" with style: ${style}, mood: ${mood}`);
+        
+        // Construct a more dynamic system prompt based on style parameter
+        const styleGuides = {
+            fantasy: "digital painting, high contrast, soft shadows, fantasy concept art, trending on ArtStation",
+            cyberpunk: "neon lighting, high contrast, cyberpunk aesthetic, futuristic, trending on ArtStation",
+            medieval: "oil painting style, historical accuracy, detailed armor and clothing, dramatic lighting",
+            ethereal: "soft dreamy lighting, pastel colors, magical atmosphere, ethereal glow, particle effects"
         };
-
-        const words = [
-            "aesthetic", "astonishing", "beautiful", "breathtaking", "composition", "contrasted",
-            "epic", "moody", "enhanced", "exceptional", "fascinating", "flawless", "glamorous",
-            "glorious", "illumination", "impressive", "improved", "inspirational", "magnificent",
-            "majestic", "hyperrealistic", "smooth", "sharp", "focus", "stunning", "detailed",
-            "intricate", "dramatic", "high", "quality", "perfect", "light", "ultra", "highly",
-            "radiant", "satisfying", "soothing", "sophisticated", "stylish", "sublime", "terrific",
-            "touching", "timeless", "wonderful", "unbelievable", "elegant", "awesome", "amazing",
-            "dynamic", "trendy"
-        ];
-
-        const wordPairs = ["highly detailed", "high quality", "enhanced quality", "perfect composition", "dynamic light"];
-
-        // Function to find and order pairs
-        function findAndOrderPairs(s, pairs) {
-            const wordsArray = s.split(/\s+/);
-            const foundPairs = [];
-            pairs.forEach(pair => {
-                const pairWords = pair.split(/\s+/);
-                if (pairWords.every(word => wordsArray.includes(word))) {
-                    foundPairs.push(pair);
-                    pairWords.forEach(word => {
-                        const index = wordsArray.indexOf(word);
-                        if (index > -1) {
-                            wordsArray.splice(index, 1);
-                        }
-                    });
-                }
-            });
-            wordsArray.forEach((word, index) => {
-                pairs.forEach(pair => {
-                    if (pair.includes(word)) {
-                        wordsArray.splice(index, 1);
-                    }
-                });
-            });
-            return `${foundPairs.join(", ")}, ${wordsArray.join(", ")}`.trim();
+        
+        // Allow for custom lighting based on mood
+        const moodLighting = {
+            epic: "dramatic backlighting, golden hour, god rays",
+            dark: "low-key lighting, deep shadows, moody atmosphere",
+            peaceful: "soft ambient lighting, gentle highlights, balanced exposure",
+            mysterious: "foggy atmosphere, partial lighting, deep shadows with highlights"
+        };
+        
+        // Build the system prompt dynamically
+        const systemPrompt = `You are an expert in crafting highly detailed, visually stunning AI prompts for ${style} portraits.
+                            Enhance the given description into a single cohesive, detailed prompt while including:
+                            
+                            - Specific character details: facial features, expression, pose, attire, accessories
+                            - Environment: setting, background elements that complement the character
+                            - Lighting: ${moodLighting[mood] || "cinematic lighting with depth"}
+                            - Artistic style: ${styleGuides[style] || "Digital painting, high contrast"}
+                            - Technical specifications: 8K UHD, photorealistic textures, volumetric lighting
+                            
+                            IMPORTANT:
+                            1. Focus on VISUAL elements only - avoid narrative backstory
+                            2. Keep the description to a SINGLE character in a SINGLE scene
+                            3. Be specific about visual details rather than generic descriptors
+                            4. Format output as a single paragraph without bullet points`;
+        
+        // Add custom details from request if provided
+        const customDetails = details.customInstructions ? `\n\nAlso incorporate these specific elements: ${details.customInstructions}` : "";
+        
+        const aiResponse = await env.AI.run(env.PROMPT_ENHANCER_MODEL || "@cf/mistral/mistral-7b-instruct-v0.1", {
+            messages: [
+                { role: "system", content: systemPrompt + customDetails },
+                { role: "user", content: `Enhance this prompt for AI image generation: "${prompt}"` }
+            ],
+            max_tokens: 300, // Increased token limit for more detailed responses
+            temperature: 0.7  // Slightly reduced for more consistent outputs
+        });
+        
+        console.log("🖌 AI Raw Response:", aiResponse);
+        
+        if (!aiResponse || !aiResponse.response) {
+            console.error("⚠️ AI failed to enhance the prompt.");
+            return createErrorResponse("Failed to generate enhanced prompt.", 500, allowedOrigin);
         }
-
-        // Apply style to the prompt
-        let enhancedPrompt = styles[style].replace("{prompt}", prompt);
-
-        // Enhance the prompt with additional words
-        enhancedPrompt += `, ${words.join(", ")}`;
-
-        // Order and format the words in the prompt
-        enhancedPrompt = findAndOrderPairs(enhancedPrompt, wordPairs);
-
+        
+        let enhancedPrompt = aiResponse.response.trim();
+        
+        // Add technical quality keywords if not already included
+        if (!enhancedPrompt.toLowerCase().includes("8k") && !enhancedPrompt.toLowerCase().includes("resolution")) {
+            enhancedPrompt += " Ultra-high resolution, 8K quality, photorealistic textures.";
+        }
+        
+        // Add style keywords if not already included
+        if (!enhancedPrompt.toLowerCase().includes("artstation") && !enhancedPrompt.toLowerCase().includes(style.toLowerCase())) {
+            enhancedPrompt += ` ${styleGuides[style] || "Digital painting, trending on ArtStation"}`;
+        }
+        
         console.log(`✅ Enhanced Prompt: "${enhancedPrompt}"`);
-
-        return new Response(JSON.stringify({ enhanced_prompt: enhancedPrompt }), {
+        
+        return new Response(JSON.stringify({ 
+            enhanced_prompt: enhancedPrompt,
+            original_prompt: prompt,
+            style: style,
+            mood: mood
+        }), {
             headers: {
                 "Content-Type": "application/json",
                 "Access-Control-Allow-Origin": allowedOrigin
             }
         });
-
     } catch (error) {
         console.error("⚠️ Prompt enhancement failed:", error);
         return createErrorResponse(error.message, 500, allowedOrigin);
     }
+}
+
+// Helper function for error responses
+function createErrorResponse(message, status, allowedOrigin) {
+    return new Response(JSON.stringify({ error: message }), {
+        status: status,
+        headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": allowedOrigin
+        }
+    });
 }
 
 async function handleImageGeneration(request, env, allowedOrigin) {
