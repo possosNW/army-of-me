@@ -218,17 +218,6 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
     }
 }
 
-// Helper function for error responses
-function createErrorResponse(message, status, allowedOrigin) {
-    return new Response(JSON.stringify({ error: message }), {
-        status: status,
-        headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": allowedOrigin
-        }
-    });
-}
-
 async function handleImageGeneration(request, env, allowedOrigin) {
     try {
         const { prompt = "A fantasy portrait of a human warrior" } = await request.json();
