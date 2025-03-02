@@ -25,6 +25,10 @@ export default {
                 return await handleImageGeneration(request, env, allowedOrigin);
             }
 
+            if (url.pathname === "/generate-enhanced-image") {
+                return await handleEnhancedImageGeneration(request, env, allowedOrigin);
+            }
+
             return createErrorResponse("Invalid endpoint", 404, allowedOrigin);
 
         } catch (error) {
@@ -164,19 +168,11 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
 
 async function handleImageGeneration(request, env, allowedOrigin) {
     try {
-        const [req1, req2] = request.body.tee();
-        const { prompt = "A fantasy portrait of a human warrior" } = await new Response(req1).json();
-
-        console.log(`🎨 Enhancing prompt before image generation: "${prompt}"`);
-
-        const enhancerResponse = await handlePromptEnhancer(new Request(request, { body: req2 }), env, allowedOrigin);
-        const { enhanced_prompt } = await enhancerResponse.json();
-
-        const finalPrompt = enhanced_prompt || prompt;
-        console.log(`✅ Final prompt used for image: "${finalPrompt}"`);
+        const { prompt = "A fantasy portrait of a human warrior" } = await request.json();
+        console.log(`🎨 Generating image with prompt: "${prompt}"`);
 
         const response = await env.AI.run(env.IMAGE_GENERATION_MODEL || "@cf/stabilityai/stable-diffusion-xl-base-1.0", {
-            prompt: finalPrompt,
+            prompt: prompt,
             width: 1024,
             height: 1024
         });
@@ -197,6 +193,27 @@ async function handleImageGeneration(request, env, allowedOrigin) {
 
     } catch (error) {
         console.error("⚠️ Image generation failed:", error);
+        return createErrorResponse(error.message, 500, allowedOrigin);
+    }
+}
+
+async function handleEnhancedImageGeneration(request, env, allowedOrigin) {
+    try {
+        const [req1, req2] = request.body.tee();
+        const { prompt = "A fantasy portrait of a human warrior" } = await new Response(req1).json();
+
+        console.log(`🎨 Enhancing prompt before image generation: "${prompt}"`);
+
+        const enhancerResponse = await handlePromptEnhancer(new Request(request, { body: req2 }), env, allowedOrigin);
+        const { enhanced_prompt } = await enhancerResponse.json();
+
+        const finalPrompt = enhanced_prompt || prompt;
+        console.log(`✅ Final prompt used for image: "${finalPrompt}"`);
+
+        return await handleImageGeneration(new Request(request, { body: JSON.stringify({ prompt: finalPrompt }) }), env, allowedOrigin);
+
+    } catch (error) {
+        console.error("⚠️ Enhanced image generation failed:", error);
         return createErrorResponse(error.message, 500, allowedOrigin);
     }
 }
