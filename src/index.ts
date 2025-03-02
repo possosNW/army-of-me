@@ -149,7 +149,7 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
         }
 
         let enhancedPrompt = aiResponse.response.trim();
-        enhancedPrompt += " Ultra-high resolution, digital painting, 8K quality, ArtStation trending, cinematic lighting, photorealistic textures.";
+        #enhancedPrompt += " Ultra-high resolution, digital painting, 8K quality, ArtStation trending, cinematic lighting, photorealistic textures.";
 
         console.log(`✅ Enhanced Prompt: "${enhancedPrompt}"`);
 
