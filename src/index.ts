@@ -120,35 +120,66 @@ async function handleNameGeneration(request, env, allowedOrigin) {
 
 async function handlePromptEnhancer(request, env, allowedOrigin) {
     try {
-        const { prompt = "A mighty dwarf paladin" } = await request.json();
-        console.log(`🎨 Enhancing prompt: "${prompt}"`);
+        const { prompt = "A mighty dwarf paladin", style = "cinematic" } = await request.json();
+        console.log(`🎨 Enhancing prompt: "${prompt}" with style: "${style}"`);
 
-        const aiResponse = await env.AI.run(env.PROMPT_ENHANCER_MODEL || "@cf/mistral/mistral-7b-instruct-v0.1", {
-            messages: [
-                {
-                    role: "system",
-                    content: `You are an expert in crafting highly detailed, visually stunning AI prompts for fantasy portraits.
-                              Enhance the given description while ensuring it includes:
-                              - Hyper-realistic, ultra-detailed features
-                              - Cinematic lighting with depth and mood
-                              - Artistic style: Digital painting, high contrast, soft shadows
-                              - Image quality: 8K UHD, trending on ArtStation, fantasy concept art
-                              - Make sure the final prompt describes a **single character** in a **cohesive scene** without unnecessary backstory.`
-                },
-                { role: "user", content: `Enhance this prompt for AI image generation: "${prompt}"` }
-            ],
-            max_tokens: 150,
-            temperature: 0.8
-        });
+        // Define styles and enhancing words
+        const styles = {
+            "cinematic": "cinematic film still of {prompt}, highly detailed, high budget Hollywood movie, cinemascope, moody, epic, gorgeous, film grain",
+            "anime": "anime artwork of {prompt}, anime style, key visual, vibrant, studio anime, highly detailed",
+            "photographic": "cinematic photo of {prompt}, 35mm photograph, film, professional, 4k, highly detailed",
+            "comic": "comic of {prompt}, graphic illustration, comic art, graphic novel art, vibrant, highly detailed",
+            "lineart": "line art drawing {prompt}, professional, sleek, modern, minimalist, graphic, line art, vector graphics",
+            "pixelart": "pixel-art {prompt}, low-res, blocky, pixel art style, 8-bit graphics",
+        };
 
-        console.log("🖌 AI Raw Response:", aiResponse);
+        const words = [
+            "aesthetic", "astonishing", "beautiful", "breathtaking", "composition", "contrasted",
+            "epic", "moody", "enhanced", "exceptional", "fascinating", "flawless", "glamorous",
+            "glorious", "illumination", "impressive", "improved", "inspirational", "magnificent",
+            "majestic", "hyperrealistic", "smooth", "sharp", "focus", "stunning", "detailed",
+            "intricate", "dramatic", "high", "quality", "perfect", "light", "ultra", "highly",
+            "radiant", "satisfying", "soothing", "sophisticated", "stylish", "sublime", "terrific",
+            "touching", "timeless", "wonderful", "unbelievable", "elegant", "awesome", "amazing",
+            "dynamic", "trendy"
+        ];
 
-        if (!aiResponse || !aiResponse.response) {
-            console.error("⚠️ AI failed to enhance the prompt.");
-            return createErrorResponse("Failed to generate enhanced prompt.", 500, allowedOrigin);
+        const wordPairs = ["highly detailed", "high quality", "enhanced quality", "perfect composition", "dynamic light"];
+
+        // Function to find and order pairs
+        function findAndOrderPairs(s, pairs) {
+            const wordsArray = s.split(/\s+/);
+            const foundPairs = [];
+            pairs.forEach(pair => {
+                const pairWords = pair.split(/\s+/);
+                if (pairWords.every(word => wordsArray.includes(word))) {
+                    foundPairs.push(pair);
+                    pairWords.forEach(word => {
+                        const index = wordsArray.indexOf(word);
+                        if (index > -1) {
+                            wordsArray.splice(index, 1);
+                        }
+                    });
+                }
+            });
+            wordsArray.forEach((word, index) => {
+                pairs.forEach(pair => {
+                    if (pair.includes(word)) {
+                        wordsArray.splice(index, 1);
+                    }
+                });
+            });
+            return `${foundPairs.join(", ")}, ${wordsArray.join(", ")}`.trim();
         }
 
-        let enhancedPrompt = aiResponse.response.trim();
+        // Apply style to the prompt
+        let enhancedPrompt = styles[style].replace("{prompt}", prompt);
+
+        // Enhance the prompt with additional words
+        enhancedPrompt += `, ${words.join(", ")}`;
+
+        // Order and format the words in the prompt
+        enhancedPrompt = findAndOrderPairs(enhancedPrompt, wordPairs);
 
         console.log(`✅ Enhanced Prompt: "${enhancedPrompt}"`);
 
