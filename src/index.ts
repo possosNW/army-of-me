@@ -566,7 +566,6 @@ async function handleImageGeneration(request: Request, env: any, allowedOrigin: 
   }
 }
 
-
 // Image-to-image generation using the portrait as input
 async function handleImg2ImgGeneration(request, env, allowedOrigin) {
     try {
