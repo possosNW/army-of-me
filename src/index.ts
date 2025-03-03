@@ -428,7 +428,7 @@ async function handleDualEnhancedImageGeneration(request, env, allowedOrigin) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     prompt: portrait_prompt,
-                    width: 768,
+                    width: 1024,
                     height: 1024,
                     style_preset: style === "fantasy" ? "fantasy-art" : style
                 })
@@ -479,7 +479,7 @@ async function handleDualEnhancedImageGeneration(request, env, allowedOrigin) {
             portrait: {
                 image: portraitData.image,
                 prompt: portrait_prompt,
-                dimensions: "768x1024"
+                dimensions: "1024x1024"
             },
             full_body: {
                 image: fullBodyData.image,
@@ -504,7 +504,7 @@ async function handleDualEnhancedImageGeneration(request, env, allowedOrigin) {
 
 async function handleImageGeneration(request: Request, env: any, allowedOrigin: string): Promise<Response> {
   try {
-    const { prompt, width = 768, height = 1024, style_preset = "fantasy-art" } = await request.json();
+    const { prompt, width = 1024, height = 1024, style_preset = "fantasy-art" } = await request.json();
 
     // Validate that dimensions are multiples of 256
     if (width % 256 !== 0 || height % 256 !== 0) {
