@@ -526,6 +526,9 @@ async function handleImageGeneration(request: Request, env: any, allowedOrigin: 
       throw new Error("No response from image generation API");
     }
 
+    // Log the response to inspect its structure
+    console.log("API Response:", response);
+
     // Check if the response is in the expected format
     if (response instanceof Response && response.body) {
       const imageBuffer = await response.arrayBuffer();
@@ -542,6 +545,18 @@ async function handleImageGeneration(request: Request, env: any, allowedOrigin: 
           "Access-Control-Allow-Origin": allowedOrigin
         }
       });
+    } else if (response instanceof Object) {
+      // Handle JSON or other object responses
+      return new Response(JSON.stringify({
+        error: "Unexpected response format",
+        details: response
+      }), {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": allowedOrigin
+        },
+        status: 500
+      });
     } else {
       throw new Error("Unexpected response format from image generation API");
     }
@@ -550,6 +565,7 @@ async function handleImageGeneration(request: Request, env: any, allowedOrigin: 
     return createErrorResponse(error.message, 500, allowedOrigin);
   }
 }
+
 
 // Image-to-image generation using the portrait as input
 async function handleImg2ImgGeneration(request, env, allowedOrigin) {
@@ -609,7 +625,6 @@ async function handleImg2ImgGeneration(request, env, allowedOrigin) {
         return createErrorResponse(error.message, 500, allowedOrigin);
     }
 }
-
 
 async function handleEnhancedImageGeneration(request, env, allowedOrigin) {
     try {
