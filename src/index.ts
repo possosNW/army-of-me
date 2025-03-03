@@ -524,7 +524,7 @@ async function handleImageGeneration(request, env, allowedOrigin) {
             prompt: prompt,
             width: width,
             height: height,
-            num_steps: 30,
+            num_steps: 20,
             guidance: 7.5
         });
         
@@ -582,7 +582,7 @@ async function handleImg2ImgGeneration(request, env, allowedOrigin) {
             width: width,
             height: height,
             strength: strength,
-            num_steps: 30,
+            num_steps: 20,
             guidance: 7.5
         });
         
