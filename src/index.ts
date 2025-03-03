@@ -218,36 +218,400 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
     }
 }
 
-async function handleImageGeneration(request, env, allowedOrigin) {
+async function handleDualPromptEnhancer(request, env, allowedOrigin) {
     try {
-        const { prompt = "A fantasy portrait of a human warrior" } = await request.json();
-        console.log(`🎨 Generating image with prompt: "${prompt}"`);
-
-        const response = await env.AI.run(env.IMAGE_GENERATION_MODEL || "@cf/stabilityai/stable-diffusion-xl-base-1.0", {
-            prompt: prompt,
-            width: 1024,
-            height: 1024
+        const { 
+            prompt = "A mighty dwarf paladin",
+            style = "fantasy", 
+            mood = "epic", 
+            details = {} 
+        } = await request.json();
+        
+        console.log(`🎨 Enhancing prompt for dual images: "${prompt}" with style: ${style}, mood: ${mood}`);
+        
+        // Style guides for different artistic styles
+        const styleGuides = {
+            fantasy: "digital painting, high contrast, soft shadows, fantasy concept art, trending on ArtStation",
+            cyberpunk: "neon lighting, high contrast, cyberpunk aesthetic, futuristic, trending on ArtStation",
+            medieval: "oil painting style, historical accuracy, detailed armor and clothing, dramatic lighting",
+            ethereal: "soft dreamy lighting, pastel colors, magical atmosphere, ethereal glow, particle effects"
+        };
+        
+        // Lighting variations based on mood
+        const moodLighting = {
+            epic: "dramatic backlighting, golden hour, god rays",
+            dark: "low-key lighting, deep shadows, moody atmosphere",
+            peaceful: "soft ambient lighting, gentle highlights, balanced exposure",
+            mysterious: "foggy atmosphere, partial lighting, deep shadows with highlights"
+        };
+        
+        // System prompt to generate consistent character details
+        const characterSystemPrompt = `You are an expert in crafting highly detailed, visually consistent AI image generation prompts.
+                            
+                            Your task is to create a CHARACTER DETAILS SHEET with specific visual attributes that can be used for both portrait and full-body images.
+                            
+                            For the given character prompt, provide ONLY these details in a structured format:
+                            
+                            1. FACE: detailed description of facial features, expression, skin texture, eye color
+                            2. HAIR: style, color, texture, any adornments
+                            3. SPECIAL FEATURES: scars, markings, unique characteristics  
+                            4. CLOTHING/ARMOR: detailed description focusing on materials, colors, and distinctive elements
+                            5. ACCESSORIES: weapons, jewelry, or other carried items
+                            6. COLOR PALETTE: 3-5 main colors that define this character
+                            
+                            DO NOT INCLUDE:
+                            - Backstory or narrative elements
+                            - Poses or composition (these will be added later)
+                            - Lighting descriptions (these will be added later)
+                            
+                            FORMAT:
+                            - Short, specific descriptions for each category
+                            - Focus on visual details that will remain consistent across both images`;
+        
+        // Get the character details first
+        const characterDetailsResponse = await env.AI.run(env.PROMPT_ENHANCER_MODEL || "@cf/mistral/mistral-7b-instruct-v0.1", {
+            messages: [
+                { role: "system", content: characterSystemPrompt },
+                { role: "user", content: `Create character details for: "${prompt}"` }
+            ],
+            max_tokens: 300,
+            temperature: 0.6
         });
-
-        if (!response || response.length === 0) {
-            console.error("⚠️ AI model returned empty response.");
-            return createErrorResponse("AI model returned no data.", 500, allowedOrigin);
+        
+        if (!characterDetailsResponse || !characterDetailsResponse.response) {
+            throw new Error("Failed to generate character details");
         }
-
-        console.log(`✅ Response size: ${response.length} bytes`);
-
-        return new Response(response, {
+        
+        const characterDetails = characterDetailsResponse.response.trim();
+        console.log("👤 Character Details:", characterDetails);
+        
+        // Now create the portrait prompt
+        const portraitSystemPrompt = `You are an expert in creating prompts for AI-generated portrait paintings.
+                               
+                               Using ONLY the character details provided, create a prompt for a head-and-shoulders portrait with these specifications:
+                               
+                               - Framed as a painted portrait on a wooden canvas
+                               - Focus on facial details, expression, and upper armor/clothing
+                               - Include ${moodLighting[mood] || "dramatic lighting"} that highlights the face
+                               - Style: ${styleGuides[style] || "Digital painting, high contrast"}
+                               
+                               FORMAT:
+                               - Single, concise paragraph (max 100 words)
+                               - Start with a clear description of the portrait format
+                               - End with technical specifications`;
+        
+        // Create the full body prompt
+        const fullBodySystemPrompt = `You are an expert in creating prompts for AI-generated full-body character art.
+                                
+                                Using ONLY the character details provided, create a prompt for a full-body image with these specifications:
+                                
+                                - Show the complete character from head to toe
+                                - Include a suitable background/environment that complements the character
+                                - Dynamic pose that displays armor/clothing and any weapons/items
+                                - Include ${moodLighting[mood] || "dramatic lighting"} that enhances the scene
+                                - Style: ${styleGuides[style] || "Digital painting, high contrast"}
+                                
+                                FORMAT:
+                                - Single, concise paragraph (max 100 words)
+                                - Start with the character's stance/pose
+                                - Include environmental context
+                                - End with technical specifications`;
+        
+        // Generate both prompts in parallel
+        const [portraitResponse, fullBodyResponse] = await Promise.all([
+            env.AI.run(env.PROMPT_ENHANCER_MODEL || "@cf/mistral/mistral-7b-instruct-v0.1", {
+                messages: [
+                    { role: "system", content: portraitSystemPrompt },
+                    { role: "user", content: characterDetails }
+                ],
+                max_tokens: 200,
+                temperature: 0.6
+            }),
+            env.AI.run(env.PROMPT_ENHANCER_MODEL || "@cf/mistral/mistral-7b-instruct-v0.1", {
+                messages: [
+                    { role: "system", content: fullBodySystemPrompt },
+                    { role: "user", content: characterDetails }
+                ],
+                max_tokens: 200,
+                temperature: 0.6
+            })
+        ]);
+        
+        if (!portraitResponse?.response || !fullBodyResponse?.response) {
+            throw new Error("Failed to generate one or both prompts");
+        }
+        
+        // Process the portrait prompt
+        let portraitPrompt = portraitResponse.response.trim();
+        portraitPrompt = portraitPrompt.replace(/^(Output:|Enhanced prompt:|Result:)/i, "").trim();
+        
+        // Process the full body prompt
+        let fullBodyPrompt = fullBodyResponse.response.trim();
+        fullBodyPrompt = fullBodyPrompt.replace(/^(Output:|Enhanced prompt:|Result:)/i, "").trim();
+        
+        // Ensure quality terms for both prompts
+        const qualityTerms = ["8k", "ultra-high resolution", "photorealistic", "artstation"];
+        
+        if (!qualityTerms.some(term => portraitPrompt.toLowerCase().includes(term))) {
+            portraitPrompt += " Ultra-high resolution, 8K quality, photorealistic textures, wooden canvas frame, trending on ArtStation.";
+        }
+        
+        if (!qualityTerms.some(term => fullBodyPrompt.toLowerCase().includes(term))) {
+            fullBodyPrompt += " Ultra-high resolution, 8K quality, photorealistic textures, trending on ArtStation.";
+        }
+        
+        console.log(`✅ Portrait Prompt: "${portraitPrompt}"`);
+        console.log(`✅ Full Body Prompt: "${fullBodyPrompt}"`);
+        
+        return new Response(JSON.stringify({ 
+            portrait_prompt: portraitPrompt,
+            full_body_prompt: fullBodyPrompt,
+            character_details: characterDetails,
+            original_prompt: prompt,
+            style: style,
+            mood: mood
+        }), {
             headers: {
-                "Content-Type": "image/png",
+                "Content-Type": "application/json",
                 "Access-Control-Allow-Origin": allowedOrigin
             }
         });
+    } catch (error) {
+        console.error("⚠️ Dual prompt enhancement failed:", error);
+        return createErrorResponse(error.message, 500, allowedOrigin);
+    }
+}
 
+async function handleDualEnhancedImageGeneration(request, env, allowedOrigin) {
+    try {
+        // Clone the request body to read it multiple times
+        const [req1, req2] = request.body.tee();
+        
+        // Extract the original request data
+        const requestData = await new Response(req1).json();
+        const { 
+            prompt = "A fantasy portrait of a human warrior",
+            style = "fantasy",
+            mood = "epic" 
+        } = requestData;
+        
+        console.log(`🎨 Generating dual images with prompt: "${prompt}", style: ${style}, mood: ${mood}`);
+        
+        // First, enhance the prompt to get both portrait and full body prompts
+        const enhancerRequest = new Request(request.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt,
+                style,
+                mood,
+                details: requestData.details || {}
+            })
+        });
+        
+        const enhancerResponse = await handleDualPromptEnhancer(enhancerRequest, env, allowedOrigin);
+        
+        if (!enhancerResponse.ok) {
+            throw new Error("Failed to enhance prompts");
+        }
+        
+        // Extract the enhanced prompts
+        const { portrait_prompt, full_body_prompt, character_details } = await enhancerResponse.json();
+        
+        console.log(`✅ Portrait prompt: "${portrait_prompt}"`);
+        console.log(`✅ Full body prompt: "${full_body_prompt}"`);
+        
+        // Step 1: Generate the portrait image first
+        const portraitResponse = await handleImageGeneration(
+            new Request(request.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    prompt: portrait_prompt,
+                    width: 768,
+                    height: 1024,
+                    style_preset: style === "fantasy" ? "fantasy-art" : style
+                })
+            }),
+            env,
+            allowedOrigin
+        );
+        
+        if (!portraitResponse.ok) {
+            throw new Error("Failed to generate portrait image");
+        }
+        
+        // Extract the portrait image data
+        const portraitData = await portraitResponse.json();
+        const portraitImage = portraitData.image; // Base64 encoded image
+        
+        if (!portraitImage) {
+            throw new Error("No portrait image generated");
+        }
+        
+        // Step 2: Use the portrait as input for the full body image using img2img
+        const fullBodyResponse = await handleImg2ImgGeneration(
+            new Request(request.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    prompt: full_body_prompt,
+                    init_image: portraitImage, // Use the portrait as the initial image
+                    width: 512,
+                    height: 1024,
+                    strength: 0.7, // How much to preserve from the original image (0.6-0.8 is a good range)
+                    style_preset: style === "fantasy" ? "fantasy-art" : style
+                })
+            }),
+            env,
+            allowedOrigin
+        );
+        
+        if (!fullBodyResponse.ok) {
+            throw new Error("Failed to generate full body image");
+        }
+        
+        // Extract the full body image data
+        const fullBodyData = await fullBodyResponse.json();
+        
+        // Return both images and prompts
+        return new Response(JSON.stringify({ 
+            portrait: {
+                image: portraitData.image,
+                prompt: portrait_prompt,
+                dimensions: "768x1024"
+            },
+            full_body: {
+                image: fullBodyData.image,
+                prompt: full_body_prompt,
+                dimensions: "512x1024"
+            },
+            character_details,
+            original_prompt: prompt,
+            style,
+            mood
+        }), {
+            headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": allowedOrigin
+            }
+        });
+    } catch (error) {
+        console.error("⚠️ Dual enhanced image generation failed:", error);
+        return createErrorResponse(error.message, 500, allowedOrigin);
+    }
+}
+
+// Regular text-to-image generation
+async function handleImageGeneration(request, env, allowedOrigin) {
+    try {
+        const { 
+            prompt, 
+            width = 768,
+            height = 1024,
+            style_preset = "fantasy-art"
+        } = await request.json();
+        
+        // Validate that dimensions are multiples of 256
+        if (width % 256 !== 0 || height % 256 !== 0) {
+            throw new Error("Image dimensions must be multiples of 256");
+        }
+        
+        console.log(`🖌️ Generating text-to-image with dimensions ${width}x${height}`);
+        
+        // Use Cloudflare Workers AI for text-to-image
+        const response = await env.AI.run("@cf/stabilityai/stable-diffusion-xl-base-1.0", {
+            prompt: prompt,
+            width: width,
+            height: height,
+            num_steps: 30,
+            guidance: 7.5
+        });
+        
+        if (!response) {
+            throw new Error("No response from image generation API");
+        }
+        
+        // Convert the response to base64
+        const imageBuffer = await response.arrayBuffer();
+        const base64Image = Buffer.from(imageBuffer).toString('base64');
+        
+        return new Response(JSON.stringify({ 
+            image: base64Image, 
+            prompt,
+            width,
+            height 
+        }), {
+            headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": allowedOrigin
+            }
+        });
     } catch (error) {
         console.error("⚠️ Image generation failed:", error);
         return createErrorResponse(error.message, 500, allowedOrigin);
     }
 }
+
+// Image-to-image generation using the portrait as input
+async function handleImg2ImgGeneration(request, env, allowedOrigin) {
+    try {
+        const { 
+            prompt,
+            init_image, // Base64 encoded image from the portrait step
+            width = 512,
+            height = 1024,
+            strength = 0.7, // How much to transform the image (0-1)
+            style_preset = "fantasy-art"
+        } = await request.json();
+        
+        // Validate that dimensions are multiples of 256
+        if (width % 256 !== 0 || height % 256 !== 0) {
+            throw new Error("Image dimensions must be multiples of 256");
+        }
+        
+        console.log(`🖌️ Generating image-to-image with dimensions ${width}x${height} and strength ${strength}`);
+        
+        // Convert base64 to binary for the API
+        const binaryImage = Buffer.from(init_image, 'base64');
+        
+        // Use Cloudflare Workers AI for image-to-image
+        const response = await env.AI.run("@cf/stabilityai/stable-diffusion-v1-5-img2img", {
+            prompt: prompt,
+            init_image: binaryImage,
+            width: width,
+            height: height,
+            strength: strength,
+            num_steps: 30,
+            guidance: 7.5
+        });
+        
+        if (!response) {
+            throw new Error("No response from image-to-image generation API");
+        }
+        
+        // Convert the response to base64
+        const imageBuffer = await response.arrayBuffer();
+        const base64Image = Buffer.from(imageBuffer).toString('base64');
+        
+        return new Response(JSON.stringify({ 
+            image: base64Image, 
+            prompt,
+            width,
+            height,
+            strength
+        }), {
+            headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": allowedOrigin
+            }
+        });
+    } catch (error) {
+        console.error("⚠️ Image-to-image generation failed:", error);
+        return createErrorResponse(error.message, 500, allowedOrigin);
+    }
+}
+
 
 async function handleEnhancedImageGeneration(request, env, allowedOrigin) {
     try {
