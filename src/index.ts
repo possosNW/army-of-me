@@ -503,68 +503,67 @@ async function handleDualEnhancedImageGeneration(request, env, allowedOrigin) {
 }
 
 async function handleImageGeneration(request: Request, env: any, allowedOrigin: string): Promise<Response> {
-  try {
-    const { prompt, width = 1024, height = 1024, style_preset = "fantasy-art" } = await request.json();
+  const maxRetries = 3;
+  let attempt = 0;
 
-    // Validate that dimensions are multiples of 256
-    if (width % 256 !== 0 || height % 256 !== 0) {
-      throw new Error("Image dimensions must be multiples of 256");
-    }
+  while (attempt < maxRetries) {
+    try {
+      const { prompt, width = 1024, height = 1024, style_preset = "fantasy-art" } = await request.json();
 
-    console.log(`🖌️ Generating text-to-image with dimensions ${width}x${height}`);
+      // Validate that dimensions are multiples of 256
+      if (width % 256 !== 0 || height % 256 !== 0) {
+        throw new Error("Image dimensions must be multiples of 256");
+      }
 
-    // Use Cloudflare Workers AI for text-to-image
-    const response = await env.AI.run("@cf/stabilityai/stable-diffusion-xl-base-1.0", {
-      prompt: prompt,
-      width: width,
-      height: height,
-      num_steps: 20, // Ensure num_steps is within allowed limits
-      guidance: 7.5
-    });
+      console.log(`🖌️ Generating text-to-image with dimensions ${width}x${height}`);
 
-    if (!response) {
-      throw new Error("No response from image generation API");
-    }
-
-    // Log the response to inspect its structure
-    console.log("API Response:", response);
-
-    // Check if the response is in the expected format
-    if (response instanceof Response && response.body) {
-      const imageBuffer = await response.arrayBuffer();
-      const base64Image = Buffer.from(imageBuffer).toString('base64');
-
-      return new Response(JSON.stringify({
-        image: base64Image,
-        prompt,
-        width,
-        height
-      }), {
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": allowedOrigin
-        }
+      // Use Cloudflare Workers AI for text-to-image
+      const response = await env.AI.run("@cf/stabilityai/stable-diffusion-xl-base-1.0", {
+        prompt: prompt,
+        width: width,
+        height: height,
+        num_steps: 20, // Ensure num_steps is within allowed limits
+        guidance: 7.5
       });
-    } else if (response instanceof Object) {
-      // Handle JSON or other object responses
-      return new Response(JSON.stringify({
-        error: "Unexpected response format",
-        details: response
-      }), {
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": allowedOrigin
-        },
-        status: 500
-      });
-    } else {
-      throw new Error("Unexpected response format from image generation API");
+
+      if (!response) {
+        throw new Error("No response from image generation API");
+      }
+
+      // Log the response to inspect its structure
+      console.log("API Response:", response);
+
+      // Check if the response is in the expected format
+      if (response instanceof Response && response.body) {
+        const imageBuffer = await response.arrayBuffer();
+        const base64Image = Buffer.from(imageBuffer).toString('base64');
+
+        return new Response(JSON.stringify({
+          image: base64Image,
+          prompt,
+          width,
+          height
+        }), {
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": allowedOrigin
+          }
+        });
+      } else {
+        throw new Error("Unexpected response format from image generation API");
+      }
+    } catch (error) {
+      console.error(`⚠️ Image generation failed (Attempt ${attempt + 1}):`, error);
+      attempt++;
+      if (attempt === maxRetries) {
+        return createErrorResponse("Image generation failed after multiple attempts.", 500, allowedOrigin);
+      }
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
-  } catch (error) {
-    console.error("⚠️ Image generation failed:", error);
-    return createErrorResponse(error.message, 500, allowedOrigin);
   }
 }
+
 
 // Image-to-image generation using the portrait as input
 async function handleImg2ImgGeneration(request, env, allowedOrigin) {
