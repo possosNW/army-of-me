@@ -111,7 +111,7 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
 }
 
 async function handleImageGeneration(request, env, allowedOrigin) {
-    const maxRetries = 3;
+    const maxRetries = 0;
     let attempt = 0;
 
     while (attempt < maxRetries) {
@@ -136,14 +136,23 @@ async function handleImageGeneration(request, env, allowedOrigin) {
                 throw new Error("No response from image generation API");
             }
 
-            const base64Image = await processImageResponse(response);
+            // Log the response to inspect its structure
+            console.log("API Response:", response);
 
-            return createSuccessResponse({
-                image: base64Image,
-                prompt,
-                width,
-                height
-            }, allowedOrigin);
+            // Check if the response is in the expected format
+            if (response instanceof Response && response.body) {
+                const imageBuffer = await response.arrayBuffer();
+                const base64Image = Buffer.from(imageBuffer).toString('base64');
+
+                return createSuccessResponse({
+                    image: base64Image,
+                    prompt,
+                    width,
+                    height
+                }, allowedOrigin);
+            } else {
+                throw new Error("Unexpected response format from image generation API");
+            }
         } catch (error) {
             console.error(`⚠️ Image generation failed (Attempt ${attempt + 1}):`, error);
             attempt++;
@@ -154,6 +163,7 @@ async function handleImageGeneration(request, env, allowedOrigin) {
         }
     }
 }
+
 
 // Utility Functions
 
