@@ -518,7 +518,7 @@ async function handleImageGeneration(request: Request, env: any, allowedOrigin: 
       console.log(`🖌️ Generating text-to-image with dimensions ${width}x${height}`);
 
       // Use Cloudflare Workers AI for text-to-image
-      const response = await env.AI.run("@cf/stabilityai/stable-diffusion-v1-5-img2img", {
+      const response = await env.AI.run("@cf/runwayml/stable-diffusion-v1-5-img2img", {
         prompt: prompt,
         width: width,
         height: height,
@@ -588,7 +588,7 @@ async function handleImg2ImgGeneration(request, env, allowedOrigin) {
         const binaryImage = Buffer.from(init_image, 'base64');
         
         // Use Cloudflare Workers AI for image-to-image
-        const response = await env.AI.run("@cf/stabilityai/stable-diffusion-v1-5-img2img", {
+        const response = await env.AI.run("@cf/runwayml/stable-diffusion-v1-5-img2img", {
             prompt: prompt,
             init_image: binaryImage,
             width: width,
