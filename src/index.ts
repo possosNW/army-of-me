@@ -124,7 +124,7 @@ async function handleImageGeneration(request, env, allowedOrigin) {
 
             console.log(`🖌️ Generating text-to-image with dimensions ${width}x${height}`);
 
-            const response = await env.AI.run("@cf/runwayml/stable-diffusion-v1-5-img2img", {
+            const response = await env.AI.run("@cf/runwayml/stable-diffusion-v1-5-inpainting", {
                 prompt: prompt,
                 width: width,
                 height: height,
