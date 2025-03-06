@@ -518,7 +518,7 @@ async function handleImageGeneration(request: Request, env: any, allowedOrigin: 
       console.log(`🖌️ Generating text-to-image with dimensions ${width}x${height}`);
 
       // Use Cloudflare Workers AI for text-to-image
-      const response = await env.AI.run("@cf/stabilityai/stable-diffusion-xl-base-1.0", {
+      const response = await env.AI.run("@cf/stabilityai/stable-diffusion-v1-5-img2img", {
         prompt: prompt,
         width: width,
         height: height,
