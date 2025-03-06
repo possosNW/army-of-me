@@ -116,7 +116,7 @@ async function handleImageGeneration(request, env, allowedOrigin) {
 
     while (attempt < maxRetries) {
         try {
-            const { prompt, width = 1024, height = 1024, image_b64, mask_b64 } = await request.json();
+            const { prompt, width = 1024, height = 1024 } = await request.json();
 
             if (width % 256 !== 0 || height % 256 !== 0) {
                 throw new Error("Image dimensions must be multiples of 256");
@@ -124,21 +124,13 @@ async function handleImageGeneration(request, env, allowedOrigin) {
 
             console.log(`🖌️ Generating text-to-image with dimensions ${width}x${height}`);
 
-            const inputs = {
-                prompt,
-                width,
-                height,
+            const response = await env.AI.run("@cf/runwayml/stable-diffusion-v1-5-inpainting", {
+                prompt: prompt,
+                width: width,
+                height: height,
                 num_steps: 20,
                 guidance: 7.5
-            };
-
-            // If image_b64 and mask_b64 are provided, add them to inputs for inpainting
-            if (image_b64 && mask_b64) {
-                inputs.image_b64 = image_b64;
-                inputs.mask = [...new Uint8Array(Buffer.from(mask_b64, 'base64'))];
-            }
-
-            const response = await env.AI.run("@cf/runwayml/stable-diffusion-v1-5-inpainting", inputs);
+            });
 
             if (!response) {
                 throw new Error("No response from image generation API");
@@ -162,7 +154,6 @@ async function handleImageGeneration(request, env, allowedOrigin) {
         }
     }
 }
-
 
 // Utility Functions
 
