@@ -121,25 +121,19 @@ async function handleImageGeneration(request, env, allowedOrigin) {
             height: 1024
         });
 
-        // Log the response to inspect its structure
-        console.log("API Response:", response);
-
-        // Check if the response is in the expected format
-        if (response instanceof ArrayBuffer) {
-            console.log(`✅ Response size: ${response.byteLength} bytes`);
-
-            return new Response(response, {
-                headers: {
-                    "Content-Type": "image/png",
-                    "Access-Control-Allow-Origin": allowedOrigin
-                }
-            });
-        } else if (response && response.error) {
-            // Handle error response from the API
-            throw new Error(`API Error: ${response.error}`);
-        } else {
-            throw new Error("Unexpected response format from image generation API");
+        if (!response || response.length === 0) {
+            console.error("⚠️ AI model returned empty response.");
+            return createErrorResponse("AI model returned no data.", 500, allowedOrigin);
         }
+
+        console.log(`✅ Response size: ${response.length} bytes`);
+
+        return new Response(response, {
+            headers: {
+                "Content-Type": "image/png",
+                "Access-Control-Allow-Origin": allowedOrigin
+            }
+        });
 
     } catch (error) {
         console.error("⚠️ Image generation failed:", error);
