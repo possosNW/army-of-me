@@ -111,59 +111,35 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
 }
 
 async function handleImageGeneration(request, env, allowedOrigin) {
-    const maxRetries = 0;
-    let attempt = 0;
+    try {
+        const { prompt = "A fantasy portrait of a human warrior" } = await request.json();
+        console.log(`🎨 Generating image with prompt: "${prompt}"`);
 
-    while (attempt < maxRetries) {
-        try {
-            const { prompt, width = 1024, height = 1024 } = await request.json();
+        const response = await env.AI.run(env.IMAGE_GENERATION_MODEL || "@cf/stabilityai/stable-diffusion-xl-base-1.0", {
+            prompt: prompt,
+            width: 1024,
+            height: 1024
+        });
 
-            if (width % 256 !== 0 || height % 256 !== 0) {
-                throw new Error("Image dimensions must be multiples of 256");
-            }
-
-            console.log(`🖌️ Generating text-to-image with dimensions ${width}x${height}`);
-
-            const response = await env.AI.run("@cf/stabilityai/stable-diffusion-xl-base-1.0", {
-                prompt: prompt,
-                width: width,
-                height: height,
-                num_steps: 20,
-                guidance: 7.5
-            });
-
-            if (!response) {
-                throw new Error("No response from image generation API");
-            }
-
-            // Log the response to inspect its structure
-            console.log("API Response:", response);
-
-            // Check if the response is in the expected format
-            if (response instanceof Response && response.body) {
-                const imageBuffer = await response.arrayBuffer();
-                const base64Image = Buffer.from(imageBuffer).toString('base64');
-
-                return createSuccessResponse({
-                    image: base64Image,
-                    prompt,
-                    width,
-                    height
-                }, allowedOrigin);
-            } else {
-                throw new Error("Unexpected response format from image generation API");
-            }
-        } catch (error) {
-            console.error(`⚠️ Image generation failed (Attempt ${attempt + 1}):`, error);
-            attempt++;
-            if (attempt === maxRetries) {
-                return createErrorResponse("Image generation failed after multiple attempts.", 500, allowedOrigin);
-            }
-            await new Promise(resolve => setTimeout(resolve, 1000));
+        if (!response || response.length === 0) {
+            console.error("⚠️ AI model returned empty response.");
+            return createErrorResponse("AI model returned no data.", 500, allowedOrigin);
         }
+
+        console.log(`✅ Response size: ${response.length} bytes`);
+
+        return new Response(response, {
+            headers: {
+                "Content-Type": "image/png",
+                "Access-Control-Allow-Origin": allowedOrigin
+            }
+        });
+
+    } catch (error) {
+        console.error("⚠️ Image generation failed:", error);
+        return createErrorResponse(error.message, 500, allowedOrigin);
     }
 }
-
 
 // Utility Functions
 
