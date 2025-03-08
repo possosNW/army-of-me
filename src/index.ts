@@ -112,11 +112,14 @@ async function handlePromptEnhancer(request, env, allowedOrigin) {
 
 async function handleImageGeneration(request, env, allowedOrigin) {
     try {
-        const { prompt = "A fantasy portrait of a human warrior" } = await request.json();
+        const { 
+                prompt = "A fantasy portrait of a human warrior", 
+                negative_prompt = "photo-realistic" } = await request.json() || {};
         console.log(`🎨 Generating image with prompt: "${prompt}"`);
 
         const response = await env.AI.run(env.IMAGE_GENERATION_MODEL || "@cf/stabilityai/stable-diffusion-xl-base-1.0", {
             prompt: prompt,
+            negative_prompt: negative_prompt,
             width: 1024,
             height: 1024
         });
